@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Modal } from '@/shared/ui/Modal';
+import { createClient } from '@/shared/api/supabase/client';
 import { getPlacePhotos, deletePhoto } from '../api/photos';
 
 interface PlacePhoto {
@@ -78,6 +79,14 @@ export function PlacePhotoModal({
     setError(null);
 
     try {
+      // 액세스 토큰 가져오기
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error('로그인이 필요합니다');
+      }
+
       for (const file of Array.from(files)) {
         // Edge Function으로 업로드
         const formData = new FormData();
@@ -86,6 +95,9 @@ export function PlacePhotoModal({
 
         const response = await fetch(`${supabaseUrl}/functions/v1/upload-photo`, {
           method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
           body: formData,
         });
 
