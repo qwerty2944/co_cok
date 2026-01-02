@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { CreateGroupModal, InviteModal } from '@/features/groups';
 
 interface Group {
@@ -43,16 +44,19 @@ export function GroupSection({ groups: initialGroups }: GroupSectionProps) {
             {initialGroups.map((group) => (
               <div
                 key={group.id}
-                className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-pink-500 to-rose-400 p-4 text-white shadow-lg"
+                className="group relative overflow-hidden rounded-2xl bg-gradient-to-r from-pink-500 to-rose-400 p-4 text-white shadow-lg transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:from-pink-600 hover:to-rose-500"
               >
-                <div className="absolute -right-4 -top-4 text-6xl opacity-20">💕</div>
+                <div className="absolute -right-4 -top-4 text-6xl opacity-20 transition-transform duration-300 group-hover:scale-110">💕</div>
                 <div className="relative flex items-center justify-between">
-                  <div>
+                  <Link href={`/groups/${group.id}`} className="flex-1">
                     <p className="text-lg font-bold">{group.name}</p>
                     <p className="text-sm text-pink-100">함께하는 우리의 기록</p>
-                  </div>
+                  </Link>
                   <button
-                    onClick={() => setInviteGroup(group)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setInviteGroup(group);
+                    }}
                     className="rounded-full bg-white/20 px-4 py-2 text-sm font-medium backdrop-blur-sm transition hover:bg-white/30"
                   >
                     초대하기
