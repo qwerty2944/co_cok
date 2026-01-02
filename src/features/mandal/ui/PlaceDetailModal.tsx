@@ -339,11 +339,13 @@ export function PlaceDetailModal({
 
                 {/* 사진 그리드 */}
                 {loadingPhotos ? (
-                  <div className="flex justify-center py-4">
+                  <div className="flex h-[56px] items-center justify-center">
                     <Spinner className="h-6 w-6 text-pink-500" />
                   </div>
                 ) : photos.length === 0 ? (
-                  <p className="text-center text-sm text-gray-400 py-4">아직 사진이 없어요</p>
+                  <div className="flex h-[56px] items-center justify-center">
+                    <p className="text-sm text-gray-400">아직 사진이 없어요</p>
+                  </div>
                 ) : (
                   <div className="grid grid-cols-3 gap-2">
                     {photos.map((photo) => (
