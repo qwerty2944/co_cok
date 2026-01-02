@@ -37,8 +37,8 @@ export default async function DashboardPage() {
   })) || [];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow">
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-gray-50">
+      <header className="shrink-0 bg-white shadow">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
           <h1 className="text-2xl font-bold text-pink-500">CO_COK</h1>
           <div className="relative flex items-center gap-4">
@@ -56,24 +56,26 @@ export default async function DashboardPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-8">
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-900">
-            안녕하세요, {profile?.nickname || '사용자'}님!
-          </h2>
-          <p className="text-gray-600">
-            {profile?.is_premium ? '프리미엄 회원' : '무료 회원'} ·
-            사진 {profile?.photo_count || 0}장 저장됨
-          </p>
-        </div>
+      <main className="flex-1 overflow-hidden px-4 py-6">
+        <div className="mx-auto flex h-full max-w-7xl flex-col">
+          <div className="mb-4 shrink-0">
+            <h2 className="text-xl font-semibold text-gray-900">
+              안녕하세요, {profile?.nickname || '사용자'}님!
+            </h2>
+            <p className="text-gray-600">
+              {profile?.is_premium ? '프리미엄 회원' : '무료 회원'} ·
+              사진 {profile?.photo_count || 0}장 저장됨
+            </p>
+          </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          <GroupSection groups={groupList} />
+          <div className="grid min-h-0 flex-1 gap-6 md:grid-cols-2">
+            <GroupSection groups={groupList} />
 
-          <div className="rounded-xl bg-white p-6 shadow">
-            <h3 className="mb-4 text-lg font-semibold">최근 데이트 코스</h3>
-            <div className="text-center text-gray-500">
-              <p>아직 기록된 코스가 없어요</p>
+            <div className="flex flex-col rounded-xl bg-white p-6 shadow">
+              <h3 className="mb-4 shrink-0 text-lg font-semibold">최근 데이트 코스</h3>
+              <div className="flex flex-1 items-center justify-center text-gray-500">
+                <p>아직 기록된 코스가 없어요</p>
+              </div>
             </div>
           </div>
         </div>

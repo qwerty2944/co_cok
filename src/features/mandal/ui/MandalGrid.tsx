@@ -117,7 +117,7 @@ export function MandalGrid({ groupId, groupName, themes, supabaseUrl }: MandalGr
 
   return (
     <>
-      <div className="aspect-square w-full max-w-2xl mx-auto">
+      <div className="aspect-square h-full max-h-full w-auto max-w-full">
         <div className="grid grid-cols-9 grid-rows-9 gap-1 h-full">
           {Array.from({ length: 81 }).map((_, i) => {
             const row = Math.floor(i / 9);

@@ -57,9 +57,9 @@ export default async function GroupPage({ params }: Props) {
     .order('position');
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50">
-      <header className="bg-white/80 backdrop-blur-sm shadow-sm sticky top-0 z-10">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-gradient-to-br from-pink-50 to-purple-50">
+      <header className="shrink-0 bg-white/80 backdrop-blur-sm shadow-sm">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
           <Link href="/dashboard" className="text-gray-500 hover:text-gray-700">
             ← 대시보드
           </Link>
@@ -68,7 +68,7 @@ export default async function GroupPage({ params }: Props) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-8">
+      <main className="flex flex-1 items-center justify-center overflow-hidden p-4">
         <MandalGrid
           groupId={id}
           groupName={group.name}
