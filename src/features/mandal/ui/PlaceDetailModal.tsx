@@ -236,16 +236,19 @@ export function PlaceDetailModal({
             <div className="space-y-3">
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">장소명</label>
-                {isEditing ? (
+                <div className="relative h-[42px]">
                   <input
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-pink-500 focus:outline-none"
+                    disabled={!isEditing}
+                    className={`absolute inset-0 w-full rounded-lg px-3 py-2 text-gray-900 focus:outline-none ${
+                      isEditing
+                        ? 'border border-gray-300 bg-white focus:border-pink-500'
+                        : 'border border-transparent bg-gray-50'
+                    }`}
                   />
-                ) : (
-                  <p className="rounded-lg bg-gray-50 px-3 py-2 text-gray-900">{place.name}</p>
-                )}
+                </div>
               </div>
 
               {place.address && (
@@ -257,19 +260,19 @@ export function PlaceDetailModal({
 
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">메모</label>
-                {isEditing ? (
+                <div className="relative h-[68px]">
                   <textarea
                     value={memo}
                     onChange={(e) => setMemo(e.target.value)}
-                    rows={2}
-                    placeholder="메모 입력"
-                    className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-pink-500 focus:outline-none"
+                    disabled={!isEditing}
+                    placeholder={isEditing ? '메모 입력' : '메모 없음'}
+                    className={`absolute inset-0 w-full resize-none rounded-lg px-3 py-2 text-sm focus:outline-none ${
+                      isEditing
+                        ? 'border border-gray-300 bg-white text-gray-900 focus:border-pink-500'
+                        : 'border border-transparent bg-gray-50 text-gray-600'
+                    }`}
                   />
-                ) : (
-                  <p className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-600">
-                    {place.memo || '메모 없음'}
-                  </p>
-                )}
+                </div>
               </div>
             </div>
 
