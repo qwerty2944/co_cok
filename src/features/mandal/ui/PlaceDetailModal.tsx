@@ -1,6 +1,12 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { Swiper, SwiperSlide } from 'swiper/react';
+import { Pagination, Navigation } from 'swiper/modules';
+import type { Swiper as SwiperType } from 'swiper';
+import 'swiper/css';
+import 'swiper/css/pagination';
+import 'swiper/css/navigation';
 import { Modal } from '@/shared/ui/Modal';
 import { createClient } from '@/shared/api/supabase/client';
 import { getPlacePhotos, deletePhoto } from '../api/photos';
@@ -16,7 +22,6 @@ interface PlacePhoto {
 interface Place {
   id: string;
   name: string;
-  address: string | null;
   memo: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -70,8 +75,9 @@ export function PlaceDetailModal({
   // 업로드 대기 상태
   const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
 
-  // 선택된 사진 (말풍선 표시용)
-  const [selectedPhoto, setSelectedPhoto] = useState<PlacePhoto | null>(null);
+  // 캐러셀 상태
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+  const swiperRef = useRef<SwiperType | null>(null);
 
   // 모달 열릴 때 초기화
   useEffect(() => {
@@ -81,7 +87,7 @@ export function PlaceDetailModal({
       setIsEditing(false);
       setError(null);
       setPendingUpload(null);
-      setSelectedPhoto(null);
+      setCurrentPhotoIndex(0);
 
       if (!place.isNew) {
         loadPhotos();
@@ -252,13 +258,6 @@ export function PlaceDetailModal({
                 </div>
               </div>
 
-              {place.address && (
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">주소</label>
-                  <p className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-600">{place.address}</p>
-                </div>
-              )}
-
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">메모</label>
                 <div className="relative h-[68px]">
@@ -284,113 +283,127 @@ export function PlaceDetailModal({
             {/* 사진 섹션 (새 장소가 아닐 때만) */}
             {!place.isNew && (
               <div className="border-t pt-4">
-                <h4 className="mb-3 font-medium text-gray-900">사진</h4>
+                <div className="mb-3 flex items-center justify-between">
+                  <h4 className="font-medium text-gray-900">사진</h4>
+                  {photos.length > 0 && (
+                    <span className="text-sm text-gray-500">{currentPhotoIndex + 1} / {photos.length}</span>
+                  )}
+                </div>
 
-                {/* 업로드 미리보기 */}
-                {pendingUpload ? (
-                  <div className="mb-4 space-y-3">
-                    <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-gray-100">
-                      <img
-                        src={pendingUpload.preview}
-                        alt="미리보기"
-                        className="h-full w-full object-contain"
+                {/* 사진 캐러셀 - 고정 높이 */}
+                <div className="h-[200px] mb-3">
+                  {pendingUpload ? (
+                    <div className="h-full space-y-2">
+                      <div className="relative h-[120px] overflow-hidden rounded-lg bg-gray-100">
+                        <img
+                          src={pendingUpload.preview}
+                          alt="미리보기"
+                          className="h-full w-full object-contain"
+                        />
+                      </div>
+                      <input
+                        type="text"
+                        value={pendingUpload.caption}
+                        onChange={(e) => setPendingUpload({ ...pendingUpload, caption: e.target.value })}
+                        placeholder="사진 설명 (선택)"
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-pink-500 focus:outline-none"
+                        disabled={uploading}
                       />
-                    </div>
-                    <input
-                      type="text"
-                      value={pendingUpload.caption}
-                      onChange={(e) => setPendingUpload({ ...pendingUpload, caption: e.target.value })}
-                      placeholder="사진 설명 (선택)"
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-pink-500 focus:outline-none"
-                      disabled={uploading}
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleCancelUpload}
-                        disabled={uploading}
-                        className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                      >
-                        취소
-                      </button>
-                      <button
-                        onClick={handleUpload}
-                        disabled={uploading}
-                        className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-pink-500 px-3 py-2 text-sm text-white hover:bg-pink-600 disabled:opacity-50"
-                      >
-                        {uploading ? <Spinner /> : '업로드'}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mb-4">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileChange}
-                      className="hidden"
-                    />
-                    <button
-                      onClick={handleFileSelect}
-                      className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-4 text-sm text-gray-500 hover:border-pink-300 hover:text-pink-500"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                      </svg>
-                      사진 추가
-                    </button>
-                  </div>
-                )}
-
-                {/* 사진 그리드 */}
-                {loadingPhotos ? (
-                  <div className="flex h-[56px] items-center justify-center">
-                    <Spinner className="h-6 w-6 text-pink-500" />
-                  </div>
-                ) : photos.length === 0 ? (
-                  <div className="flex h-[56px] items-center justify-center">
-                    <p className="text-sm text-gray-400">아직 사진이 없어요</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-3 gap-2">
-                    {photos.map((photo) => (
-                      <div key={photo.id} className="group relative aspect-square">
+                      <div className="flex gap-2">
                         <button
-                          onClick={() => setSelectedPhoto(selectedPhoto?.id === photo.id ? null : photo)}
-                          className="h-full w-full"
+                          onClick={handleCancelUpload}
+                          disabled={uploading}
+                          className="flex-1 rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                         >
-                          <img
-                            src={getImageUrl(photo)}
-                            alt={photo.caption || ''}
-                            className="h-full w-full rounded-lg object-cover"
-                          />
-                          {photo.caption && (
-                            <div className="absolute bottom-1 left-1 rounded-full bg-black/50 p-1">
-                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="white" className="w-3 h-3">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
-                              </svg>
-                            </div>
-                          )}
+                          취소
                         </button>
-                        {selectedPhoto?.id === photo.id && (
-                          <div className="absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 transform">
-                            <div className="rounded-lg bg-gray-900 px-3 py-2 text-sm text-white shadow-lg max-w-[200px]">
-                              {photo.caption || '설명 없음'}
-                              <div className="absolute left-1/2 top-full -translate-x-1/2 transform border-4 border-transparent border-t-gray-900" />
-                            </div>
-                          </div>
-                        )}
                         <button
-                          onClick={(e) => { e.stopPropagation(); handleDeletePhoto(photo.id); }}
-                          className="absolute right-1 top-1 rounded-full bg-black/50 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                          onClick={handleUpload}
+                          disabled={uploading}
+                          className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-pink-500 px-2 py-1.5 text-sm text-white hover:bg-pink-600 disabled:opacity-50"
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                          </svg>
+                          {uploading ? <Spinner className="h-4 w-4" /> : '업로드'}
                         </button>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ) : loadingPhotos ? (
+                    <div className="flex h-full items-center justify-center">
+                      <Spinner className="h-6 w-6 text-pink-500" />
+                    </div>
+                  ) : photos.length === 0 ? (
+                    <div className="flex h-full flex-col items-center justify-center">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
+                      <button
+                        onClick={handleFileSelect}
+                        className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-6 py-4 text-sm text-gray-500 hover:border-pink-300 hover:text-pink-500"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                        사진 추가
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="h-full">
+                      <Swiper
+                        modules={[Pagination, Navigation]}
+                        pagination={{ clickable: true }}
+                        navigation
+                        onSwiper={(swiper) => { swiperRef.current = swiper; }}
+                        onSlideChange={(swiper) => setCurrentPhotoIndex(swiper.activeIndex)}
+                        className="h-[160px] rounded-lg [&_.swiper-button-prev]:!w-8 [&_.swiper-button-prev]:!h-8 [&_.swiper-button-prev]:bg-black/50 [&_.swiper-button-prev]:rounded-full [&_.swiper-button-prev]:after:!text-sm [&_.swiper-button-prev]:after:!text-white [&_.swiper-button-next]:!w-8 [&_.swiper-button-next]:!h-8 [&_.swiper-button-next]:bg-black/50 [&_.swiper-button-next]:rounded-full [&_.swiper-button-next]:after:!text-sm [&_.swiper-button-next]:after:!text-white [&_.swiper-pagination-bullet-active]:!bg-pink-500"
+                      >
+                        {photos.map((photo) => (
+                          <SwiperSlide key={photo.id}>
+                            <div className="relative h-full bg-gray-100">
+                              <img
+                                src={getImageUrl(photo)}
+                                alt={photo.caption || ''}
+                                className="h-full w-full object-contain"
+                              />
+                              <button
+                                onClick={() => handleDeletePhoto(photo.id)}
+                                className="absolute right-2 top-2 z-10 rounded-full bg-black/50 p-1.5 text-white hover:bg-black/70"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </div>
+                          </SwiperSlide>
+                        ))}
+                      </Swiper>
+                      <p className="mt-2 text-center text-sm text-gray-600 truncate">
+                        {photos[currentPhotoIndex]?.caption || '설명 없음'}
+                      </p>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* 사진 추가 버튼 (사진이 있을 때) */}
+                {!pendingUpload && !loadingPhotos && photos.length > 0 && (
+                  <button
+                    onClick={handleFileSelect}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:border-pink-300 hover:text-pink-500"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                    사진 추가
+                  </button>
                 )}
               </div>
             )}

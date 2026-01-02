@@ -3,7 +3,6 @@
 interface Place {
   id: string;
   name: string;
-  address: string | null;
   order_index: number;
   memo: string | null;
   latitude: number | null;
@@ -72,9 +71,6 @@ function PlaceItem({
         <div className="flex items-center gap-2">
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-900 truncate">{place.name}</p>
-            {place.address && (
-              <p className="text-xs text-gray-500 truncate">{place.address}</p>
-            )}
             {place.memo && (
               <p className="text-xs text-pink-500 truncate">{place.memo}</p>
             )}

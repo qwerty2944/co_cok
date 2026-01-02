@@ -14,6 +14,7 @@ interface Course {
   id: string;
   title: string;
   position: number;
+  date?: string | null;
 }
 
 interface CourseModalProps {
@@ -29,7 +30,6 @@ interface CourseModalProps {
 interface LocalPlace {
   id: string;
   name: string;
-  address: string | null;
   order_index: number;
   memo: string | null;
   latitude: number | null;
@@ -65,6 +65,7 @@ function PlaceSkeleton() {
 
 export function CourseModal({ open, themeId, position, course, onClose, onSuccess, supabaseUrl }: CourseModalProps) {
   const [title, setTitle] = useState('');
+  const [date, setDate] = useState('');
   const [saving, setSaving] = useState(false);
   const [initialLoading, setInitialLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,6 +77,7 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
 
   // 원본 데이터 (변경 감지용)
   const [originalTitle, setOriginalTitle] = useState('');
+  const [originalDate, setOriginalDate] = useState('');
   const [originalPlaces, setOriginalPlaces] = useState<LocalPlace[]>([]);
 
   // 장소 상세 모달 상태
@@ -97,9 +99,11 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
     } else if (open && !course) {
       // 새 코스 생성
       setTitle('');
+      setDate('');
       setLocalPlaces([]);
       setDeletedPlaceIds([]);
       setOriginalTitle('');
+      setOriginalDate('');
       setOriginalPlaces([]);
       setHasChanges(false);
       setPhotosCounts({});
@@ -118,8 +122,10 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
     if (result.success && result.course) {
       const places = result.course.places || [];
       setTitle(result.course.title);
+      setDate(result.course.date || '');
       setLocalPlaces(places);
       setOriginalTitle(result.course.title);
+      setOriginalDate(result.course.date || '');
       setOriginalPlaces(JSON.parse(JSON.stringify(places)));
       setDeletedPlaceIds([]);
       setHasChanges(false);
@@ -147,11 +153,12 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
     if (!isEdit) return;
 
     const titleChanged = title !== originalTitle;
+    const dateChanged = date !== originalDate;
     const placesChanged = JSON.stringify(localPlaces) !== JSON.stringify(originalPlaces);
     const hasDeleted = deletedPlaceIds.length > 0;
 
-    setHasChanges(titleChanged || placesChanged || hasDeleted);
-  }, [title, localPlaces, deletedPlaceIds, originalTitle, originalPlaces, isEdit]);
+    setHasChanges(titleChanged || dateChanged || placesChanged || hasDeleted);
+  }, [title, date, localPlaces, deletedPlaceIds, originalTitle, originalDate, originalPlaces, isEdit]);
 
   // 새 코스 생성
   async function handleCreate(e: React.FormEvent) {
@@ -161,7 +168,7 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
     setSaving(true);
     setError(null);
 
-    const result = await createCourse(themeId, title.trim(), position);
+    const result = await createCourse(themeId, title.trim(), position, date || undefined);
     setSaving(false);
 
     if ('error' in result && result.error) {
@@ -181,10 +188,10 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
     const result = await saveCourseChanges(
       course.id,
       title.trim(),
+      date || null,
       localPlaces.map((p) => ({
         id: p.id,
         name: p.name,
-        address: p.address,
         memo: p.memo,
         latitude: p.latitude,
         longitude: p.longitude,
@@ -219,7 +226,6 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
   // 로컬 장소 추가 (모달에서 받은 데이터로)
   function handleAddPlace(placeData: {
     name: string;
-    address: string | null;
     memo: string | null;
     latitude: number | null;
     longitude: number | null;
@@ -227,7 +233,6 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
     const newPlace: LocalPlace = {
       id: `new-${Date.now()}`,
       name: placeData.name,
-      address: placeData.address,
       order_index: localPlaces.length,
       memo: placeData.memo,
       latitude: placeData.latitude,
@@ -323,6 +328,19 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
                   placeholder="예: 강릉 1박2일"
                   className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500"
                   autoFocus={!isEdit}
+                  disabled={initialLoading}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  날짜 <span className="text-gray-400 font-normal">(선택)</span>
+                </label>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500"
                   disabled={initialLoading}
                 />
               </div>

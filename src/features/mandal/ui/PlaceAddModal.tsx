@@ -16,7 +16,6 @@ interface PlaceAddModalProps {
   onClose: () => void;
   onAdd: (place: {
     name: string;
-    address: string | null;
     memo: string | null;
     latitude: number | null;
     longitude: number | null;
@@ -51,7 +50,6 @@ export function PlaceAddModal({ open, onClose, onAdd }: PlaceAddModalProps) {
   // 선택된 장소 또는 수동 입력
   const [selectedPlace, setSelectedPlace] = useState<SearchResult | null>(null);
   const [manualName, setManualName] = useState('');
-  const [manualAddress, setManualAddress] = useState('');
   const [memo, setMemo] = useState('');
 
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -65,7 +63,6 @@ export function PlaceAddModal({ open, onClose, onAdd }: PlaceAddModalProps) {
       setError(null);
       setSelectedPlace(null);
       setManualName('');
-      setManualAddress('');
       setMemo('');
     }
   }, [open]);
@@ -121,7 +118,6 @@ export function PlaceAddModal({ open, onClose, onAdd }: PlaceAddModalProps) {
       const { lat, lng } = convertNaverCoord(selectedPlace.mapx, selectedPlace.mapy);
       onAdd({
         name: selectedPlace.name,
-        address: selectedPlace.address,
         memo: memo.trim() || null,
         latitude: lat,
         longitude: lng,
@@ -129,7 +125,6 @@ export function PlaceAddModal({ open, onClose, onAdd }: PlaceAddModalProps) {
     } else if (mode === 'manual' && manualName.trim()) {
       onAdd({
         name: manualName.trim(),
-        address: manualAddress.trim() || null,
         memo: memo.trim() || null,
         latitude: null,
         longitude: null,
@@ -249,17 +244,6 @@ export function PlaceAddModal({ open, onClose, onAdd }: PlaceAddModalProps) {
                     placeholder="예: 스타벅스 강남점"
                     className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-pink-500 focus:outline-none"
                     autoFocus
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">주소</label>
-                  <input
-                    type="text"
-                    value={manualAddress}
-                    onChange={(e) => setManualAddress(e.target.value)}
-                    placeholder="주소 입력 (선택)"
-                    className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-pink-500 focus:outline-none"
                   />
                 </div>
               </>

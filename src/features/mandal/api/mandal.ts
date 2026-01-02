@@ -82,7 +82,7 @@ export async function getThemes(groupId: string) {
 }
 
 // 코스 생성
-export async function createCourse(themeId: string, title: string, position: number) {
+export async function createCourse(themeId: string, title: string, position: number, date?: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -108,6 +108,7 @@ export async function createCourse(themeId: string, title: string, position: num
       group_id: theme.group_id,
       title,
       position,
+      date: date || null,
       created_by: user.id,
     })
     .select()
@@ -264,7 +265,6 @@ export async function reorderPlaces(courseId: string, placeIds: string[]) {
 interface PlaceData {
   id: string;
   name: string;
-  address: string | null;
   memo: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -274,15 +274,16 @@ interface PlaceData {
 export async function saveCourseChanges(
   courseId: string,
   title: string,
+  date: string | null,
   places: PlaceData[],
   deletedPlaceIds: string[]
 ) {
   const supabase = await createClient();
 
-  // 1. 코스 제목 업데이트
+  // 1. 코스 제목, 날짜 업데이트
   const { error: titleError } = await supabase
     .from('date_courses')
-    .update({ title })
+    .update({ title, date })
     .eq('id', courseId);
 
   if (titleError) {
@@ -312,7 +313,6 @@ export async function saveCourseChanges(
         .insert({
           course_id: courseId,
           name: place.name,
-          address: place.address,
           memo: place.memo,
           latitude: place.latitude,
           longitude: place.longitude,
