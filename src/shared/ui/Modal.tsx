@@ -5,6 +5,8 @@ import {
   useContext,
   useState,
   useCallback,
+  useRef,
+  useEffect,
   type ReactNode,
 } from 'react';
 
@@ -91,25 +93,36 @@ interface ContentProps {
 
 function Content({ children, className }: ContentProps) {
   const { isOpen, close } = useModalContext();
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const mouseDownTarget = useRef<EventTarget | null>(null);
 
   if (!isOpen) return null;
 
-  function handleOverlayClick(e: React.MouseEvent) {
-    // 오버레이 직접 클릭만 처리 (드래그 이벤트 버블링 무시)
-    if (e.target === e.currentTarget) {
+  function handleMouseDown(e: React.MouseEvent) {
+    mouseDownTarget.current = e.target;
+  }
+
+  function handleMouseUp(e: React.MouseEvent) {
+    // mousedown과 mouseup이 둘 다 오버레이에서 발생했을 때만 닫기
+    if (
+      mouseDownTarget.current === overlayRef.current &&
+      e.target === overlayRef.current
+    ) {
       close();
     }
+    mouseDownTarget.current = null;
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div
+        ref={overlayRef}
         className="absolute inset-0 bg-black/50"
-        onMouseDown={handleOverlayClick}
+        onMouseDown={handleMouseDown}
+        onMouseUp={handleMouseUp}
       />
       <div
         className={`relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl ${className || ''}`}
-        onMouseDown={(e) => e.stopPropagation()}
       >
         {children}
       </div>
