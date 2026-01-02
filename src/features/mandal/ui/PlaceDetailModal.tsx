@@ -2,14 +2,13 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Swiper, SwiperSlide } from 'swiper/react';
-import { Pagination, Navigation } from 'swiper/modules';
+import { Pagination } from 'swiper/modules';
 import type { Swiper as SwiperType } from 'swiper';
 import 'swiper/css';
 import 'swiper/css/pagination';
-import 'swiper/css/navigation';
 import { Modal } from '@/shared/ui/Modal';
 import { createClient } from '@/shared/api/supabase/client';
-import { getPlacePhotos, deletePhoto } from '../api/photos';
+import { getPlacePhotos, deletePhoto, updatePhotoCaption } from '../api/photos';
 
 interface PlacePhoto {
   id: string;
@@ -79,6 +78,11 @@ export function PlaceDetailModal({
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const swiperRef = useRef<SwiperType | null>(null);
 
+  // 캡션 수정 상태
+  const [editingCaption, setEditingCaption] = useState(false);
+  const [captionInput, setCaptionInput] = useState('');
+  const [savingCaption, setSavingCaption] = useState(false);
+
   // 모달 열릴 때 초기화
   useEffect(() => {
     if (open && place) {
@@ -88,6 +92,8 @@ export function PlaceDetailModal({
       setError(null);
       setPendingUpload(null);
       setCurrentPhotoIndex(0);
+      setEditingCaption(false);
+      setCaptionInput('');
 
       if (!place.isNew) {
         loadPhotos();
@@ -189,11 +195,51 @@ export function PlaceDetailModal({
 
     const result = await deletePhoto(photoId);
     if (result.success) {
-      setPhotos(photos.filter((p) => p.id !== photoId));
+      const newPhotos = photos.filter((p) => p.id !== photoId);
+      setPhotos(newPhotos);
+      // 인덱스 조정
+      if (currentPhotoIndex >= newPhotos.length && newPhotos.length > 0) {
+        setCurrentPhotoIndex(newPhotos.length - 1);
+        swiperRef.current?.slideTo(newPhotos.length - 1);
+      }
       onPhotosChange();
     } else {
       setError(result.error || '삭제에 실패했어요');
     }
+  }
+
+  // 캡션 수정 시작
+  function handleStartEditCaption() {
+    const currentPhoto = photos[currentPhotoIndex];
+    if (!currentPhoto) return;
+    setCaptionInput(currentPhoto.caption || '');
+    setEditingCaption(true);
+  }
+
+  // 캡션 저장
+  async function handleSaveCaption() {
+    const currentPhoto = photos[currentPhotoIndex];
+    if (!currentPhoto) return;
+
+    setSavingCaption(true);
+    const result = await updatePhotoCaption(currentPhoto.id, captionInput);
+    setSavingCaption(false);
+
+    if (result.success) {
+      // 로컬 상태 업데이트
+      setPhotos(photos.map((p) =>
+        p.id === currentPhoto.id ? { ...p, caption: captionInput.trim() || null } : p
+      ));
+      setEditingCaption(false);
+    } else {
+      setError(result.error || '저장에 실패했어요');
+    }
+  }
+
+  // 캡션 수정 취소
+  function handleCancelEditCaption() {
+    setEditingCaption(false);
+    setCaptionInput('');
   }
 
   // 썸네일 또는 원본 URL
@@ -351,37 +397,107 @@ export function PlaceDetailModal({
                     </div>
                   ) : (
                     <div className="h-full">
-                      <Swiper
-                        modules={[Pagination, Navigation]}
-                        pagination={{ clickable: true }}
-                        navigation
-                        onSwiper={(swiper) => { swiperRef.current = swiper; }}
-                        onSlideChange={(swiper) => setCurrentPhotoIndex(swiper.activeIndex)}
-                        className="h-[160px] rounded-lg [&_.swiper-button-prev]:!w-8 [&_.swiper-button-prev]:!h-8 [&_.swiper-button-prev]:bg-black/50 [&_.swiper-button-prev]:rounded-full [&_.swiper-button-prev]:after:!text-sm [&_.swiper-button-prev]:after:!text-white [&_.swiper-button-next]:!w-8 [&_.swiper-button-next]:!h-8 [&_.swiper-button-next]:bg-black/50 [&_.swiper-button-next]:rounded-full [&_.swiper-button-next]:after:!text-sm [&_.swiper-button-next]:after:!text-white [&_.swiper-pagination-bullet-active]:!bg-pink-500"
-                      >
-                        {photos.map((photo) => (
-                          <SwiperSlide key={photo.id}>
-                            <div className="relative h-full bg-gray-100">
-                              <img
-                                src={getImageUrl(photo)}
-                                alt={photo.caption || ''}
-                                className="h-full w-full object-contain"
-                              />
-                              <button
-                                onClick={() => handleDeletePhoto(photo.id)}
-                                className="absolute right-2 top-2 z-10 rounded-full bg-black/50 p-1.5 text-white hover:bg-black/70"
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      <div className="relative h-[160px]">
+                        <Swiper
+                          modules={[Pagination]}
+                          pagination={{ clickable: true }}
+                          onSwiper={(swiper) => { swiperRef.current = swiper; }}
+                          onSlideChange={(swiper) => {
+                            setCurrentPhotoIndex(swiper.activeIndex);
+                            setEditingCaption(false);
+                          }}
+                          className="h-full rounded-lg [&_.swiper-pagination-bullet-active]:!bg-pink-500"
+                        >
+                          {photos.map((photo) => (
+                            <SwiperSlide key={photo.id}>
+                              <div className="relative h-full bg-gray-100">
+                                <img
+                                  src={getImageUrl(photo)}
+                                  alt={photo.caption || ''}
+                                  className="h-full w-full object-contain"
+                                />
+                                <button
+                                  onClick={() => handleDeletePhoto(photo.id)}
+                                  className="absolute right-2 top-2 z-10 rounded-full bg-black/50 p-1.5 text-white hover:bg-black/70"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </SwiperSlide>
+                          ))}
+                        </Swiper>
+                        {/* 커스텀 네비게이션 버튼 */}
+                        {photos.length > 1 && (
+                          <>
+                            <button
+                              onClick={() => swiperRef.current?.slidePrev()}
+                              className="absolute left-2 top-1/2 z-10 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-md hover:bg-white"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4 text-gray-700">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => swiperRef.current?.slideNext()}
+                              className="absolute right-2 top-1/2 z-10 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-md hover:bg-white"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4 text-gray-700">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                              </svg>
+                            </button>
+                          </>
+                        )}
+                      </div>
+                      {/* 캡션 영역 */}
+                      <div className="mt-2 h-[32px]">
+                        {editingCaption ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="text"
+                              value={captionInput}
+                              onChange={(e) => setCaptionInput(e.target.value)}
+                              placeholder="사진 설명 입력"
+                              className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm text-gray-900 focus:border-pink-500 focus:outline-none"
+                              autoFocus
+                              disabled={savingCaption}
+                            />
+                            <button
+                              onClick={handleCancelEditCaption}
+                              disabled={savingCaption}
+                              className="rounded p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={handleSaveCaption}
+                              disabled={savingCaption}
+                              className="rounded p-1 text-pink-500 hover:text-pink-600 disabled:opacity-50"
+                            >
+                              {savingCaption ? (
+                                <Spinner className="h-5 w-5" />
+                              ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                                 </svg>
-                              </button>
-                            </div>
-                          </SwiperSlide>
-                        ))}
-                      </Swiper>
-                      <p className="mt-2 text-center text-sm text-gray-600 truncate">
-                        {photos[currentPhotoIndex]?.caption || '설명 없음'}
-                      </p>
+                              )}
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={handleStartEditCaption}
+                            className="flex w-full items-center justify-center gap-1 text-sm text-gray-600 hover:text-pink-500"
+                          >
+                            <span className="truncate">{photos[currentPhotoIndex]?.caption || '설명 없음'}</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 shrink-0">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
                       <input
                         ref={fileInputRef}
                         type="file"

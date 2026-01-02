@@ -85,3 +85,24 @@ export async function getPlacePhotosCounts(placeIds: string[]) {
 
   return { success: true, counts };
 }
+
+// 사진 캡션 수정
+export async function updatePhotoCaption(photoId: string, caption: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: '로그인이 필요합니다' };
+  }
+
+  const { error } = await supabase
+    .from('place_photos')
+    .update({ caption: caption.trim() || null })
+    .eq('id', photoId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  return { success: true };
+}
