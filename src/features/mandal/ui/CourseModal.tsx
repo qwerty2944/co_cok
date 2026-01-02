@@ -7,7 +7,7 @@ import { Modal } from '@/shared/ui/Modal';
 import { createCourse, deleteCourse, getCourseDetail, saveCourseChanges } from '../api/mandal';
 import { getPlacePhotosCounts } from '../api/photos';
 import { PlaceList } from './PlaceList';
-import { PlacePhotoModal } from './PlacePhotoModal';
+import { PlaceDetailModal } from './PlaceDetailModal';
 import { PlaceAddModal } from './PlaceAddModal';
 
 interface Course {
@@ -78,11 +78,10 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
   const [originalTitle, setOriginalTitle] = useState('');
   const [originalPlaces, setOriginalPlaces] = useState<LocalPlace[]>([]);
 
-  // 사진 모달 상태
-  const [photoModal, setPhotoModal] = useState<{ open: boolean; placeId: string; placeName: string }>({
+  // 장소 상세 모달 상태
+  const [detailModal, setDetailModal] = useState<{ open: boolean; place: LocalPlace | null }>({
     open: false,
-    placeId: '',
-    placeName: '',
+    place: null,
   });
   const [photosCounts, setPhotosCounts] = useState<Record<string, number>>({});
 
@@ -261,9 +260,23 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
     setLocalPlaces(reordered);
   }
 
-  // 사진 모달 열기
-  function handleOpenPhotos(placeId: string, placeName: string) {
-    setPhotoModal({ open: true, placeId, placeName });
+  // 장소 상세 모달 열기
+  function handleOpenDetail(place: LocalPlace) {
+    setDetailModal({ open: true, place });
+  }
+
+  // 장소 정보 저장 (이름, 메모)
+  function handleSavePlace(placeId: string, data: { name: string; memo: string | null }) {
+    setLocalPlaces(localPlaces.map((p) =>
+      p.id === placeId ? { ...p, name: data.name, memo: data.memo } : p
+    ));
+    // 상세 모달의 place도 업데이트
+    if (detailModal.place?.id === placeId) {
+      setDetailModal({
+        ...detailModal,
+        place: { ...detailModal.place, name: data.name, memo: data.memo },
+      });
+    }
   }
 
   // 사진 변경 시 개수 새로고침
@@ -332,7 +345,7 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
                       places={localPlaces}
                       onReorder={handleReorder}
                       onDelete={handleDeletePlace}
-                      onOpenPhotos={handleOpenPhotos}
+                      onOpenDetail={handleOpenDetail}
                       placePhotosCounts={photosCounts}
                     />
                   )}
@@ -383,11 +396,11 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
         </Modal.Content>
       </Modal.Root>
 
-      <PlacePhotoModal
-        open={photoModal.open}
-        placeId={photoModal.placeId}
-        placeName={photoModal.placeName}
-        onClose={() => setPhotoModal({ open: false, placeId: '', placeName: '' })}
+      <PlaceDetailModal
+        open={detailModal.open}
+        place={detailModal.place}
+        onClose={() => setDetailModal({ open: false, place: null })}
+        onSave={handleSavePlace}
         onPhotosChange={handlePhotosChange}
         supabaseUrl={supabaseUrl}
       />

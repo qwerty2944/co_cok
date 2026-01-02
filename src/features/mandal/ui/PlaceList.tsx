@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-
 interface Place {
   id: string;
   name: string;
   address: string | null;
   order_index: number;
   memo: string | null;
+  latitude: number | null;
+  longitude: number | null;
   isNew?: boolean;
 }
 
@@ -15,7 +15,7 @@ interface PlaceListProps {
   places: Place[];
   onReorder: (placeIds: string[]) => void;
   onDelete: (placeId: string) => void;
-  onOpenPhotos?: (placeId: string, placeName: string) => void;
+  onOpenDetail: (place: Place) => void;
   placePhotosCounts?: Record<string, number>;
 }
 
@@ -26,7 +26,7 @@ function PlaceItem({
   onMoveUp,
   onMoveDown,
   onDelete,
-  onOpenPhotos,
+  onOpenDetail,
   photoCount,
 }: {
   place: Place;
@@ -35,7 +35,7 @@ function PlaceItem({
   onMoveUp: () => void;
   onMoveDown: () => void;
   onDelete: () => void;
-  onOpenPhotos?: () => void;
+  onOpenDetail: () => void;
   photoCount?: number;
 }) {
   return (
@@ -64,34 +64,38 @@ function PlaceItem({
         </button>
       </div>
 
-      {/* 장소 정보 */}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-900 truncate">{place.name}</p>
-        {place.address && (
-          <p className="text-xs text-gray-500 truncate">{place.address}</p>
-        )}
-        {place.memo && (
-          <p className="text-xs text-pink-500 truncate">{place.memo}</p>
-        )}
-      </div>
-
-      {/* 사진 버튼 */}
-      {onOpenPhotos && !place.isNew && (
-        <button
-          onClick={onOpenPhotos}
-          className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs ${
-            photoCount && photoCount > 0
-              ? 'bg-pink-100 text-pink-600'
-              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-          }`}
-          title="사진"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-            <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
-          </svg>
-          {photoCount && photoCount > 0 ? photoCount : null}
-        </button>
-      )}
+      {/* 장소 정보 (클릭 가능) */}
+      <button
+        onClick={onOpenDetail}
+        className="flex-1 min-w-0 text-left rounded-md px-2 py-1 -mx-1 transition-all active:scale-[0.98] active:bg-pink-50 hover:bg-gray-50"
+      >
+        <div className="flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-900 truncate">{place.name}</p>
+            {place.address && (
+              <p className="text-xs text-gray-500 truncate">{place.address}</p>
+            )}
+            {place.memo && (
+              <p className="text-xs text-pink-500 truncate">{place.memo}</p>
+            )}
+          </div>
+          {/* 사진 개수 배지 */}
+          {photoCount && photoCount > 0 && (
+            <span className="shrink-0 flex items-center gap-1 rounded-full bg-pink-100 px-2 py-0.5 text-xs text-pink-600">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3 h-3">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+              </svg>
+              {photoCount}
+            </span>
+          )}
+          {/* 새 장소 표시 */}
+          {place.isNew && (
+            <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-600">
+              새 장소
+            </span>
+          )}
+        </div>
+      </button>
 
       {/* 삭제 버튼 */}
       <button
@@ -107,7 +111,7 @@ function PlaceItem({
   );
 }
 
-export function PlaceList({ places, onReorder, onDelete, onOpenPhotos, placePhotosCounts }: PlaceListProps) {
+export function PlaceList({ places, onReorder, onDelete, onOpenDetail, placePhotosCounts }: PlaceListProps) {
   function handleMoveUp(index: number) {
     if (index === 0) return;
     const newOrder = [...places];
@@ -141,7 +145,7 @@ export function PlaceList({ places, onReorder, onDelete, onOpenPhotos, placePhot
           onMoveUp={() => handleMoveUp(index)}
           onMoveDown={() => handleMoveDown(index)}
           onDelete={() => onDelete(place.id)}
-          onOpenPhotos={onOpenPhotos ? () => onOpenPhotos(place.id, place.name) : undefined}
+          onOpenDetail={() => onOpenDetail(place)}
           photoCount={placePhotosCounts?.[place.id]}
         />
       ))}
