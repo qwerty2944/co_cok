@@ -256,7 +256,20 @@ export function PlaceDetailModal({
             {/* 장소 정보 */}
             <div className="space-y-3">
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">장소명</label>
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="text-sm font-medium text-gray-700">장소명</label>
+                  {!isEditing && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditing(true)}
+                      className="p-1 text-gray-400 hover:text-pink-500"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
                 <div className="relative h-[42px]">
                   <input
                     type="text"
@@ -274,7 +287,20 @@ export function PlaceDetailModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">메모</label>
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="text-sm font-medium text-gray-700">메모</label>
+                  {!isEditing && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditing(true)}
+                      className="p-1 text-gray-400 hover:text-pink-500"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
                 <div className="relative h-[68px]">
                   <textarea
                     value={memo}
@@ -298,7 +324,20 @@ export function PlaceDetailModal({
               {!place.isNew && (
                 <div className="flex gap-3">
                   <div className="flex-1">
-                    <label className="mb-1 block text-sm font-medium text-gray-700">시작 날짜</label>
+                    <div className="mb-1 flex items-center justify-between">
+                      <label className="text-sm font-medium text-gray-700">시작 날짜</label>
+                      {!isEditing && (
+                        <button
+                          type="button"
+                          onClick={() => setIsEditing(true)}
+                          className="p-1 text-gray-400 hover:text-pink-500"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
                     <input
                       type="date"
                       value={startDate}
@@ -320,7 +359,20 @@ export function PlaceDetailModal({
                     />
                   </div>
                   <div className="flex-1">
-                    <label className="mb-1 block text-sm font-medium text-gray-700">종료 날짜</label>
+                    <div className="mb-1 flex items-center justify-between">
+                      <label className="text-sm font-medium text-gray-700">종료 날짜</label>
+                      {!isEditing && (
+                        <button
+                          type="button"
+                          onClick={() => setIsEditing(true)}
+                          className="p-1 text-gray-400 hover:text-pink-500"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
                     <input
                       type="date"
                       value={endDate}
@@ -562,20 +614,12 @@ export function PlaceDetailModal({
                   </button>
                 </>
               ) : (
-                <>
-                  <button
-                    onClick={() => setIsEditing(true)}
-                    className="flex-1 rounded-lg border border-pink-300 px-4 py-3 text-pink-600 hover:bg-pink-50"
-                  >
-                    수정
-                  </button>
-                  <button
-                    onClick={handleClose}
-                    className="flex-1 rounded-lg bg-gray-100 px-4 py-3 text-gray-700 hover:bg-gray-200"
-                  >
-                    닫기
-                  </button>
-                </>
+                <button
+                  onClick={handleClose}
+                  className="w-full rounded-lg bg-gray-100 px-4 py-3 text-gray-700 hover:bg-gray-200"
+                >
+                  닫기
+                </button>
               )}
             </div>
           </div>
