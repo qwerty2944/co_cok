@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Skeleton from 'react-loading-skeleton';
+import 'react-loading-skeleton/dist/skeleton.css';
 import { Modal } from '@/shared/ui/Modal';
 import { createCourse, updateCourse, deleteCourse, getCourseDetail, addPlace, deletePlace, reorderPlaces } from '../api/mandal';
 import { PlaceList } from './PlaceList';
@@ -46,9 +48,27 @@ function Spinner() {
   );
 }
 
+function PlaceSkeleton() {
+  return (
+    <div className="space-y-2">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-2">
+          <Skeleton width={20} height={20} />
+          <div className="flex-1">
+            <Skeleton width="60%" height={14} />
+            <Skeleton width="40%" height={12} style={{ marginTop: 4 }} />
+          </div>
+          <Skeleton width={16} height={16} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function CourseModal({ open, themeId, position, course, onClose, onSuccess }: CourseModalProps) {
   const [title, setTitle] = useState('');
   const [loading, setLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<CourseDetail | null>(null);
   const [newPlaceName, setNewPlaceName] = useState('');
@@ -67,7 +87,9 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
 
   async function loadDetail() {
     if (!course) return;
+    setDetailLoading(true);
     const result = await getCourseDetail(course.id);
+    setDetailLoading(false);
     if (result.success && result.course) {
       setDetail(result.course);
     }
@@ -141,6 +163,7 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
       setNewPlaceName('');
       setLoading(false);
       setAddingPlace(false);
+      setDetailLoading(false);
     }
   }, [open, course]);
 
@@ -172,15 +195,23 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
             )}
 
             {/* 기존 코스면 장소 목록 표시 */}
-            {isEdit && detail && (
+            {isEdit && (
               <div className="border-t pt-4">
                 <h4 className="font-medium text-gray-900 mb-2">여행 코스</h4>
 
-                <PlaceList
-                  places={detail.places}
-                  onReorder={handleReorder}
-                  onDelete={handleDeletePlace}
-                />
+                {detailLoading ? (
+                  <PlaceSkeleton />
+                ) : detail ? (
+                  <PlaceList
+                    places={detail.places}
+                    onReorder={handleReorder}
+                    onDelete={handleDeletePlace}
+                  />
+                ) : (
+                  <p className="text-sm text-gray-400 text-center py-4">
+                    아직 장소가 없어요
+                  </p>
+                )}
 
                 <div className="flex gap-2 mt-3">
                   <input
@@ -190,11 +221,12 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
                     onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddPlace())}
                     placeholder="장소 추가"
                     className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-pink-500 focus:outline-none"
+                    disabled={detailLoading}
                   />
                   <button
                     type="button"
                     onClick={handleAddPlace}
-                    disabled={!newPlaceName.trim() || addingPlace}
+                    disabled={!newPlaceName.trim() || addingPlace || detailLoading}
                     className="flex items-center justify-center rounded-lg bg-pink-500 px-3 py-2 text-sm text-white hover:bg-pink-600 disabled:opacity-50"
                   >
                     {addingPlace ? <Spinner /> : '추가'}
