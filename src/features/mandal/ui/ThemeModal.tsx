@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal } from '@/shared/ui/Modal';
 import { createTheme, updateTheme, deleteTheme } from '../api/mandal';
 
@@ -60,10 +60,12 @@ export function ThemeModal({ open, position, theme, groupId, onClose, onSuccess 
   }
 
   // 모달 열릴 때 초기화
-  if (open && name !== (theme?.name || '')) {
-    setName(theme?.name || '');
-    setError(null);
-  }
+  useEffect(() => {
+    if (open) {
+      setName(theme?.name || '');
+      setError(null);
+    }
+  }, [open, theme]);
 
   return (
     <Modal.Root open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
