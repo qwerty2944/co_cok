@@ -1,14 +1,16 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useRef, useEffect } from 'react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Pagination } from 'swiper/modules';
 import type { Swiper as SwiperType } from 'swiper';
+import toast from 'react-hot-toast';
 import 'swiper/css';
 import 'swiper/css/pagination';
 import { Modal } from '@/shared/ui/Modal';
 import { createClient } from '@/shared/api/supabase/client';
-import { getPlacePhotos, deletePhoto, updatePhotoCaption } from '../api/photos';
+import { usePlacePhotos, useDeletePhoto, useUpdatePhotoCaption } from '../hooks';
+import { usePlaceDetailStore } from '../stores/usePlaceDetailStore';
 
 interface PlacePhoto {
   id: string;
@@ -24,6 +26,8 @@ interface Place {
   memo: string | null;
   latitude: number | null;
   longitude: number | null;
+  start_date?: string | null;
+  end_date?: string | null;
   isNew?: boolean;
 }
 
@@ -31,7 +35,7 @@ interface PlaceDetailModalProps {
   open: boolean;
   place: Place | null;
   onClose: () => void;
-  onSave: (placeId: string, data: { name: string; memo: string | null }) => void;
+  onSave: (placeId: string, data: { name: string; memo: string | null; start_date: string | null; end_date: string | null }) => void;
   onPhotosChange: () => void;
   supabaseUrl: string;
 }
@@ -59,61 +63,39 @@ export function PlaceDetailModal({
   onPhotosChange,
   supabaseUrl,
 }: PlaceDetailModalProps) {
-  // 편집 상태
-  const [name, setName] = useState('');
-  const [memo, setMemo] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
+  // Zustand store
+  const store = usePlaceDetailStore();
+  const {
+    name, memo, startDate, endDate, isEditing,
+    uploading, pendingUpload, error, currentPhotoIndex,
+    editingCaption, captionInput,
+    setName, setMemo, setStartDate, setEndDate, setIsEditing,
+    setUploading, setError, setCurrentPhotoIndex,
+    initialize, reset, cancelEdit,
+    setPendingUpload, updatePendingCaption, clearPendingUpload,
+    startEditCaption, setCaptionInput, cancelEditCaption, finishEditCaption,
+    hasChanges: getHasChanges,
+  } = store;
 
-  // 사진 상태
-  const [photos, setPhotos] = useState<PlacePhoto[]>([]);
-  const [loadingPhotos, setLoadingPhotos] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // React Query hooks
+  const placeId = place?.id;
+  const isNewPlace = place?.isNew === true;
+  const { data: photos = [], isLoading: loadingPhotos, refetch: refetchPhotos } = usePlacePhotos(placeId, open && !isNewPlace);
+  const deletePhotoMutation = useDeletePhoto(placeId || '');
+  const updateCaptionMutation = useUpdatePhotoCaption(placeId || '');
+
+  // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // 업로드 대기 상태
-  const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
-
-  // 캐러셀 상태
-  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const swiperRef = useRef<SwiperType | null>(null);
 
-  // 캡션 수정 상태
-  const [editingCaption, setEditingCaption] = useState(false);
-  const [captionInput, setCaptionInput] = useState('');
-  const [savingCaption, setSavingCaption] = useState(false);
+  const savingCaption = updateCaptionMutation.isPending;
 
   // 모달 열릴 때 초기화
   useEffect(() => {
     if (open && place) {
-      setName(place.name);
-      setMemo(place.memo || '');
-      setIsEditing(false);
-      setError(null);
-      setPendingUpload(null);
-      setCurrentPhotoIndex(0);
-      setEditingCaption(false);
-      setCaptionInput('');
-
-      if (!place.isNew) {
-        loadPhotos();
-      } else {
-        setPhotos([]);
-      }
+      initialize(place);
     }
   }, [open, place?.id]);
-
-  async function loadPhotos() {
-    if (!place || place.isNew) return;
-
-    setLoadingPhotos(true);
-    const result = await getPlacePhotos(place.id);
-    setLoadingPhotos(false);
-
-    if (result.success) {
-      setPhotos(result.photos || []);
-    }
-  }
 
   // 파일 선택
   function handleFileSelect() {
@@ -126,8 +108,7 @@ export function PlaceDetailModal({
     if (!files || files.length === 0) return;
 
     const file = files[0];
-    const preview = URL.createObjectURL(file);
-    setPendingUpload({ file, preview, caption: '' });
+    setPendingUpload(file);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -136,10 +117,7 @@ export function PlaceDetailModal({
 
   // 업로드 취소
   function handleCancelUpload() {
-    if (pendingUpload) {
-      URL.revokeObjectURL(pendingUpload.preview);
-      setPendingUpload(null);
-    }
+    clearPendingUpload();
   }
 
   // 실제 업로드
@@ -178,9 +156,8 @@ export function PlaceDetailModal({
         throw new Error(result.error || '업로드 실패');
       }
 
-      URL.revokeObjectURL(pendingUpload.preview);
-      setPendingUpload(null);
-      await loadPhotos();
+      clearPendingUpload();
+      await refetchPhotos();
       onPhotosChange();
     } catch (err) {
       setError(err instanceof Error ? err.message : '업로드에 실패했어요');
@@ -193,18 +170,17 @@ export function PlaceDetailModal({
   async function handleDeletePhoto(photoId: string) {
     if (!confirm('이 사진을 삭제하시겠어요?')) return;
 
-    const result = await deletePhoto(photoId);
-    if (result.success) {
-      const newPhotos = photos.filter((p) => p.id !== photoId);
-      setPhotos(newPhotos);
-      // 인덱스 조정
-      if (currentPhotoIndex >= newPhotos.length && newPhotos.length > 0) {
-        setCurrentPhotoIndex(newPhotos.length - 1);
-        swiperRef.current?.slideTo(newPhotos.length - 1);
+    try {
+      await deletePhotoMutation.mutateAsync(photoId);
+      // 인덱스 조정 (낙관적 업데이트로 photos가 이미 변경됨)
+      const newLength = photos.length - 1;
+      if (currentPhotoIndex >= newLength && newLength > 0) {
+        setCurrentPhotoIndex(newLength - 1);
+        swiperRef.current?.slideTo(newLength - 1);
       }
       onPhotosChange();
-    } else {
-      setError(result.error || '삭제에 실패했어요');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '삭제에 실패했어요');
     }
   }
 
@@ -212,8 +188,7 @@ export function PlaceDetailModal({
   function handleStartEditCaption() {
     const currentPhoto = photos[currentPhotoIndex];
     if (!currentPhoto) return;
-    setCaptionInput(currentPhoto.caption || '');
-    setEditingCaption(true);
+    startEditCaption(currentPhoto.caption);
   }
 
   // 캡션 저장
@@ -221,25 +196,17 @@ export function PlaceDetailModal({
     const currentPhoto = photos[currentPhotoIndex];
     if (!currentPhoto) return;
 
-    setSavingCaption(true);
-    const result = await updatePhotoCaption(currentPhoto.id, captionInput);
-    setSavingCaption(false);
-
-    if (result.success) {
-      // 로컬 상태 업데이트
-      setPhotos(photos.map((p) =>
-        p.id === currentPhoto.id ? { ...p, caption: captionInput.trim() || null } : p
-      ));
-      setEditingCaption(false);
-    } else {
-      setError(result.error || '저장에 실패했어요');
+    try {
+      await updateCaptionMutation.mutateAsync({ photoId: currentPhoto.id, caption: captionInput });
+      finishEditCaption();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '저장에 실패했어요');
     }
   }
 
   // 캡션 수정 취소
   function handleCancelEditCaption() {
-    setEditingCaption(false);
-    setCaptionInput('');
+    cancelEditCaption();
   }
 
   // 썸네일 또는 원본 URL
@@ -255,6 +222,8 @@ export function PlaceDetailModal({
     onSave(place.id, {
       name: name.trim(),
       memo: memo.trim() || null,
+      start_date: startDate || null,
+      end_date: endDate || null,
     });
     setIsEditing(false);
   }
@@ -269,7 +238,7 @@ export function PlaceDetailModal({
     onClose();
   }
 
-  const hasChanges = place && (name !== place.name || memo !== (place.memo || ''));
+  const hasChanges = getHasChanges(place);
 
   if (!place) return null;
 
@@ -324,6 +293,56 @@ export function PlaceDetailModal({
                   )}
                 </div>
               </div>
+
+              {/* 날짜 입력 (새 장소가 아닐 때만) */}
+              {!place.isNew && (
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <label className="mb-1 block text-sm font-medium text-gray-700">시작 날짜</label>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => {
+                        const newStartDate = e.target.value;
+                        if (endDate && newStartDate > endDate) {
+                          toast.error('시작 날짜는 종료 날짜보다 앞이어야 해요');
+                          return;
+                        }
+                        setStartDate(newStartDate);
+                      }}
+                      readOnly={!isEditing}
+                      tabIndex={isEditing ? 0 : -1}
+                      className={`w-full rounded-lg px-3 py-2 text-sm outline-none ${
+                        isEditing
+                          ? 'border border-gray-300 bg-white text-gray-900 cursor-text'
+                          : 'border border-transparent bg-gray-50 text-gray-600 cursor-default pointer-events-none'
+                      }`}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="mb-1 block text-sm font-medium text-gray-700">종료 날짜</label>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => {
+                        const newEndDate = e.target.value;
+                        if (startDate && newEndDate < startDate) {
+                          toast.error('종료 날짜는 시작 날짜보다 뒤어야 해요');
+                          return;
+                        }
+                        setEndDate(newEndDate);
+                      }}
+                      readOnly={!isEditing}
+                      tabIndex={isEditing ? 0 : -1}
+                      className={`w-full rounded-lg px-3 py-2 text-sm outline-none ${
+                        isEditing
+                          ? 'border border-gray-300 bg-white text-gray-900 cursor-text'
+                          : 'border border-transparent bg-gray-50 text-gray-600 cursor-default pointer-events-none'
+                      }`}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 사진 섹션 (새 장소가 아닐 때만) */}
@@ -350,7 +369,7 @@ export function PlaceDetailModal({
                       <input
                         type="text"
                         value={pendingUpload.caption}
-                        onChange={(e) => setPendingUpload({ ...pendingUpload, caption: e.target.value })}
+                        onChange={(e) => updatePendingCaption(e.target.value)}
                         placeholder="사진 설명 (선택)"
                         className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-pink-500 focus:outline-none"
                         disabled={uploading}
@@ -396,15 +415,15 @@ export function PlaceDetailModal({
                       </button>
                     </div>
                   ) : (
-                    <div className="h-full">
-                      <div className="relative h-[160px]">
+                    <div className="flex h-full flex-col">
+                      <div className="relative h-[160px] flex-shrink-0">
                         <Swiper
                           modules={[Pagination]}
                           pagination={{ clickable: true }}
                           onSwiper={(swiper) => { swiperRef.current = swiper; }}
                           onSlideChange={(swiper) => {
                             setCurrentPhotoIndex(swiper.activeIndex);
-                            setEditingCaption(false);
+                            cancelEditCaption();
                           }}
                           className="h-full rounded-lg [&_.swiper-pagination-bullet-active]:!bg-pink-500"
                         >
@@ -450,23 +469,23 @@ export function PlaceDetailModal({
                           </>
                         )}
                       </div>
-                      {/* 캡션 영역 */}
-                      <div className="mt-2 h-[32px]">
+                      {/* 캡션 영역 - 고정 높이 */}
+                      <div className="mt-2 h-[32px] flex-shrink-0 overflow-hidden">
                         {editingCaption ? (
-                          <div className="flex items-center gap-1">
+                          <div className="flex h-full items-center gap-1">
                             <input
                               type="text"
                               value={captionInput}
                               onChange={(e) => setCaptionInput(e.target.value)}
                               placeholder="사진 설명 입력"
-                              className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm text-gray-900 focus:border-pink-500 focus:outline-none"
+                              className="h-full flex-1 rounded border border-gray-300 px-2 text-sm text-gray-900 focus:border-pink-500 focus:outline-none"
                               autoFocus
                               disabled={savingCaption}
                             />
                             <button
                               onClick={handleCancelEditCaption}
                               disabled={savingCaption}
-                              className="rounded p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                              className="flex h-full items-center rounded px-1 text-gray-400 hover:text-gray-600 disabled:opacity-50"
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -475,7 +494,7 @@ export function PlaceDetailModal({
                             <button
                               onClick={handleSaveCaption}
                               disabled={savingCaption}
-                              className="rounded p-1 text-pink-500 hover:text-pink-600 disabled:opacity-50"
+                              className="flex h-full items-center rounded px-1 text-pink-500 hover:text-pink-600 disabled:opacity-50"
                             >
                               {savingCaption ? (
                                 <Spinner className="h-5 w-5" />
@@ -489,7 +508,7 @@ export function PlaceDetailModal({
                         ) : (
                           <button
                             onClick={handleStartEditCaption}
-                            className="flex w-full items-center justify-center gap-1 text-sm text-gray-600 hover:text-pink-500"
+                            className="flex h-full w-full items-center justify-center gap-1 text-sm text-gray-600 hover:text-pink-500"
                           >
                             <span className="truncate">{photos[currentPhotoIndex]?.caption || '설명 없음'}</span>
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 shrink-0">
@@ -529,11 +548,7 @@ export function PlaceDetailModal({
               {isEditing ? (
                 <>
                   <button
-                    onClick={() => {
-                      setName(place.name);
-                      setMemo(place.memo || '');
-                      setIsEditing(false);
-                    }}
+                    onClick={() => cancelEdit(place)}
                     className="flex-1 rounded-lg border border-gray-300 px-4 py-3 text-gray-700 hover:bg-gray-50"
                   >
                     취소

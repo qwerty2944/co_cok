@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import { Modal } from '@/shared/ui/Modal';
-import { createCourse, deleteCourse, getCourseDetail, saveCourseChanges } from '../api/mandal';
-import { getPlacePhotosCounts } from '../api/photos';
+import { useCourseDetail, usePlacePhotosCounts, useSaveCourse, useCreateCourse, useDeleteCourse } from '../hooks';
+import { useCourseModalStore } from '../stores/useCourseModalStore';
 import { PlaceList } from './PlaceList';
 import { PlaceDetailModal } from './PlaceDetailModal';
 import { PlaceAddModal } from './PlaceAddModal';
@@ -14,7 +15,6 @@ interface Course {
   id: string;
   title: string;
   position: number;
-  date?: string | null;
 }
 
 interface CourseModalProps {
@@ -25,16 +25,6 @@ interface CourseModalProps {
   onClose: () => void;
   onSuccess: () => void;
   supabaseUrl: string;
-}
-
-interface LocalPlace {
-  id: string;
-  name: string;
-  order_index: number;
-  memo: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  isNew?: boolean;
 }
 
 function Spinner() {
@@ -51,12 +41,15 @@ function PlaceSkeleton() {
     <div className="space-y-2">
       {[1, 2, 3].map((i) => (
         <div key={i} className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-2">
-          <Skeleton width={20} height={20} />
-          <div className="flex-1">
-            <Skeleton width="60%" height={14} />
+          <div className="flex flex-col gap-0.5">
+            <Skeleton width={16} height={16} borderRadius={4} />
+            <Skeleton width={16} height={16} borderRadius={4} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <Skeleton width="70%" height={14} />
             <Skeleton width="40%" height={12} style={{ marginTop: 4 }} />
           </div>
-          <Skeleton width={16} height={16} />
+          <Skeleton width={16} height={16} borderRadius={4} />
         </div>
       ))}
     </div>
@@ -64,117 +57,83 @@ function PlaceSkeleton() {
 }
 
 export function CourseModal({ open, themeId, position, course, onClose, onSuccess, supabaseUrl }: CourseModalProps) {
-  const [title, setTitle] = useState('');
-  const [date, setDate] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  // 로컬 상태
-  const [localPlaces, setLocalPlaces] = useState<LocalPlace[]>([]);
-  const [deletedPlaceIds, setDeletedPlaceIds] = useState<string[]>([]);
-  const [hasChanges, setHasChanges] = useState(false);
+  // React Query hooks
+  const { data: courseData, isLoading: isLoadingCourse, isFetching } = useCourseDetail(course?.id);
+  const saveMutation = useSaveCourse();
+  const createMutation = useCreateCourse();
+  const deleteMutation = useDeleteCourse();
 
-  // 원본 데이터 (변경 감지용)
-  const [originalTitle, setOriginalTitle] = useState('');
-  const [originalDate, setOriginalDate] = useState('');
-  const [originalPlaces, setOriginalPlaces] = useState<LocalPlace[]>([]);
-
-  // 장소 상세 모달 상태
-  const [detailModal, setDetailModal] = useState<{ open: boolean; place: LocalPlace | null }>({
-    open: false,
-    place: null,
-  });
-  const [photosCounts, setPhotosCounts] = useState<Record<string, number>>({});
-
-  // 장소 추가 모달 상태
-  const [placeAddModalOpen, setPlaceAddModalOpen] = useState(false);
+  // Zustand store
+  const store = useCourseModalStore();
+  const {
+    title, localPlaces, deletedPlaceIds, isInitialized, isEditing, error,
+    detailModalOpen, detailModalPlace, placeAddModalOpen,
+    setTitle, setError, setIsEditing, cancelEdit,
+    initializeForEdit, initializeForCreate, reset,
+    addPlace, deletePlace, reorderPlaces, updatePlace,
+    openDetailModal, closeDetailModal, updateDetailModalPlace,
+    openPlaceAddModal, closePlaceAddModal,
+    hasChanges: getHasChanges,
+  } = store;
 
   const isEdit = !!course;
+  const saving = saveMutation.isPending || createMutation.isPending || deleteMutation.isPending;
 
-  // 초기 데이터 로드 (모달 열릴 때 한 번만)
+  // 장소 ID 목록 (사진 개수 조회용)
+  const placeIds = useMemo(() => localPlaces.map((p) => p.id), [localPlaces]);
+  const { data: photosCounts = {} } = usePlacePhotosCounts(placeIds);
+
+  // 첫 로딩인지 확인 (캐시된 데이터가 있으면 스켈레톤 안 보여줌)
+  const showSkeleton = isEdit && isLoadingCourse && !courseData;
+
+  // 서버 데이터로 로컬 상태 초기화
   useEffect(() => {
-    if (open && course) {
-      loadInitialData();
-    } else if (open && !course) {
-      // 새 코스 생성
-      setTitle('');
-      setDate('');
-      setLocalPlaces([]);
-      setDeletedPlaceIds([]);
-      setOriginalTitle('');
-      setOriginalDate('');
-      setOriginalPlaces([]);
-      setHasChanges(false);
-      setPhotosCounts({});
+    if (open && course && courseData && !isInitialized) {
+      initializeForEdit(courseData.title, courseData.places || []);
+    } else if (open && !course && !isInitialized) {
+      initializeForCreate();
     }
-  }, [open, course?.id]);
+  }, [open, course?.id, courseData, isInitialized]);
 
-  async function loadInitialData() {
-    if (!course) return;
-
-    setInitialLoading(true);
-    setError(null);
-
-    const result = await getCourseDetail(course.id);
-    setInitialLoading(false);
-
-    if (result.success && result.course) {
-      const places = result.course.places || [];
-      setTitle(result.course.title);
-      setDate(result.course.date || '');
-      setLocalPlaces(places);
-      setOriginalTitle(result.course.title);
-      setOriginalDate(result.course.date || '');
-      setOriginalPlaces(JSON.parse(JSON.stringify(places)));
-      setDeletedPlaceIds([]);
-      setHasChanges(false);
-
-      // 사진 개수 로드
-      loadPhotosCounts(places.map((p: LocalPlace) => p.id));
+  // 모달 닫힐 때 초기화
+  useEffect(() => {
+    if (!open) {
+      reset();
     }
-  }
+  }, [open]);
 
-  async function loadPhotosCounts(placeIds: string[]) {
-    const existingPlaceIds = placeIds.filter((id) => !id.startsWith('new-'));
-    if (existingPlaceIds.length === 0) {
-      setPhotosCounts({});
-      return;
-    }
+  // URL에서 장소 ID 읽어서 모달 열기
+  useEffect(() => {
+    const placeId = searchParams.get('place');
+    const courseId = searchParams.get('course');
 
-    const result = await getPlacePhotosCounts(existingPlaceIds);
-    if (result.success) {
-      setPhotosCounts(result.counts || {});
+    if (placeId && courseId && open && !detailModalOpen && localPlaces.length > 0) {
+      const place = localPlaces.find((p) => p.id === placeId);
+      if (place) {
+        openDetailModal(place);
+      }
+    } else if (!placeId && detailModalOpen) {
+      closeDetailModal();
     }
-  }
+  }, [searchParams, open, localPlaces]);
 
   // 변경 감지
-  useEffect(() => {
-    if (!isEdit) return;
-
-    const titleChanged = title !== originalTitle;
-    const dateChanged = date !== originalDate;
-    const placesChanged = JSON.stringify(localPlaces) !== JSON.stringify(originalPlaces);
-    const hasDeleted = deletedPlaceIds.length > 0;
-
-    setHasChanges(titleChanged || dateChanged || placesChanged || hasDeleted);
-  }, [title, date, localPlaces, deletedPlaceIds, originalTitle, originalDate, originalPlaces, isEdit]);
+  const hasChanges = isEdit ? getHasChanges() : false;
 
   // 새 코스 생성
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || saving) return;
 
-    setSaving(true);
     setError(null);
-
-    const result = await createCourse(themeId, title.trim(), position, date || undefined);
-    setSaving(false);
-
-    if ('error' in result && result.error) {
-      setError(result.error);
-    } else {
+    try {
+      await createMutation.mutateAsync({ themeId, title: title.trim(), position });
       onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '생성에 실패했어요');
     }
   }
 
@@ -182,138 +141,95 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
   async function handleSave() {
     if (!course || saving || !hasChanges) return;
 
-    setSaving(true);
     setError(null);
-
-    const result = await saveCourseChanges(
-      course.id,
-      title.trim(),
-      date || null,
-      localPlaces.map((p) => ({
-        id: p.id,
-        name: p.name,
-        memo: p.memo,
-        latitude: p.latitude,
-        longitude: p.longitude,
-        isNew: p.isNew,
-      })),
-      deletedPlaceIds
-    );
-
-    setSaving(false);
-
-    if ('error' in result && result.error) {
-      setError(result.error);
-    } else {
+    try {
+      await saveMutation.mutateAsync({
+        courseId: course.id,
+        title: title.trim(),
+        places: localPlaces.map((p) => ({
+          id: p.id,
+          name: p.name,
+          memo: p.memo,
+          latitude: p.latitude,
+          longitude: p.longitude,
+          start_date: p.start_date,
+          end_date: p.end_date,
+          isNew: p.isNew,
+        })),
+        deletedPlaceIds,
+      });
       onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '저장에 실패했어요');
     }
   }
 
   async function handleDelete() {
     if (!course || saving || !confirm('이 코스를 삭제하시겠어요?')) return;
 
-    setSaving(true);
-    const result = await deleteCourse(course.id);
-    setSaving(false);
-
-    if ('error' in result && result.error) {
-      setError(result.error);
-    } else {
+    setError(null);
+    try {
+      await deleteMutation.mutateAsync(course.id);
       onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '삭제에 실패했어요');
     }
   }
 
-  // 로컬 장소 추가 (모달에서 받은 데이터로)
+  // 로컬 장소 추가
   function handleAddPlace(placeData: {
     name: string;
     memo: string | null;
     latitude: number | null;
     longitude: number | null;
   }) {
-    const newPlace: LocalPlace = {
-      id: `new-${Date.now()}`,
-      name: placeData.name,
-      order_index: localPlaces.length,
-      memo: placeData.memo,
-      latitude: placeData.latitude,
-      longitude: placeData.longitude,
-      isNew: true,
-    };
-
-    setLocalPlaces([...localPlaces, newPlace]);
-  }
-
-  // 로컬 장소 삭제
-  function handleDeletePlace(placeId: string) {
-    const place = localPlaces.find((p) => p.id === placeId);
-    if (!place) return;
-
-    // 새로 추가된 장소가 아니면 삭제 목록에 추가
-    if (!place.isNew) {
-      setDeletedPlaceIds([...deletedPlaceIds, placeId]);
-    }
-
-    setLocalPlaces(localPlaces.filter((p) => p.id !== placeId));
-  }
-
-  // 로컬 장소 순서 변경
-  function handleReorder(placeIds: string[]) {
-    const reordered = placeIds.map((id, index) => {
-      const place = localPlaces.find((p) => p.id === id)!;
-      return { ...place, order_index: index };
-    });
-    setLocalPlaces(reordered);
+    addPlace(placeData);
   }
 
   // 장소 상세 모달 열기
-  function handleOpenDetail(place: LocalPlace) {
-    setDetailModal({ open: true, place });
+  function handleOpenDetail(place: typeof localPlaces[0]) {
+    if (course && !place.isNew) {
+      router.push(`?course=${course.id}&place=${place.id}`, { scroll: false });
+    }
+    openDetailModal(place);
   }
 
-  // 장소 정보 저장 (이름, 메모)
-  function handleSavePlace(placeId: string, data: { name: string; memo: string | null }) {
-    setLocalPlaces(localPlaces.map((p) =>
-      p.id === placeId ? { ...p, name: data.name, memo: data.memo } : p
-    ));
-    // 상세 모달의 place도 업데이트
-    if (detailModal.place?.id === placeId) {
-      setDetailModal({
-        ...detailModal,
-        place: { ...detailModal.place, name: data.name, memo: data.memo },
-      });
+  // 장소 상세 모달 닫기
+  function handleCloseDetail() {
+    if (course) {
+      router.push(`?course=${course.id}`, { scroll: false });
+    }
+    closeDetailModal();
+  }
+
+  // 장소 정보 저장
+  function handleSavePlace(placeId: string, data: { name: string; memo: string | null; start_date: string | null; end_date: string | null }) {
+    updatePlace(placeId, { name: data.name, memo: data.memo, start_date: data.start_date, end_date: data.end_date });
+    if (detailModalPlace?.id === placeId) {
+      updateDetailModalPlace({ name: data.name, memo: data.memo, start_date: data.start_date, end_date: data.end_date });
     }
   }
 
-  // 사진 변경 시 개수 새로고침
-  function handlePhotosChange() {
-    const existingPlaceIds = localPlaces.filter((p) => !p.isNew).map((p) => p.id);
-    loadPhotosCounts(existingPlaceIds);
-  }
-
-  // 모달 닫기 (변경사항 있으면 확인)
+  // 모달 닫기
   function handleClose() {
-    if (hasChanges && !confirm('저장하지 않은 변경사항이 있어요. 닫으시겠어요?')) {
+    if (isEditing && hasChanges && !confirm('저장하지 않은 변경사항이 있어요. 닫으시겠어요?')) {
       return;
     }
     onClose();
   }
 
-  // 모달 열릴 때 초기화
-  useEffect(() => {
-    if (open) {
-      setError(null);
-      setSaving(false);
-      if (course) {
-        setInitialLoading(true);
-      }
-    }
-  }, [open, course]);
-
   return (
     <>
       <Modal.Root open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
         <Modal.Content className="max-w-md">
-          <Modal.Header>{isEdit ? '코스 상세' : '새 코스'}</Modal.Header>
+          <Modal.Header>
+            {isEdit ? '코스 상세' : '새 코스'}
+            {isFetching && !isLoadingCourse && (
+              <span className="ml-2 inline-block">
+                <Spinner />
+              </span>
+            )}
+          </Modal.Header>
 
           <Modal.Body>
             <form onSubmit={isEdit ? (e) => { e.preventDefault(); handleSave(); } : handleCreate} className="space-y-4">
@@ -321,28 +237,24 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   코스 이름
                 </label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="예: 강릉 1박2일"
-                  className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500"
-                  autoFocus={!isEdit}
-                  disabled={initialLoading}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  날짜 <span className="text-gray-400 font-normal">(선택)</span>
-                </label>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500"
-                  disabled={initialLoading}
-                />
+                {showSkeleton ? (
+                  <Skeleton height={46} borderRadius={8} />
+                ) : (
+                  <input
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="예: 강릉 1박2일"
+                    readOnly={isEdit && !isEditing}
+                    tabIndex={isEdit && !isEditing ? -1 : 0}
+                    className={`w-full rounded-lg px-4 py-3 text-gray-900 outline-none ${
+                      isEdit && !isEditing
+                        ? 'border border-transparent bg-gray-50 cursor-default pointer-events-none'
+                        : 'border border-gray-300 focus:border-pink-500 focus:ring-2 focus:ring-pink-500'
+                    }`}
+                    autoFocus={!isEdit}
+                  />
+                )}
               </div>
 
               {error && (
@@ -351,19 +263,22 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
                 </div>
               )}
 
-              {/* 기존 코스면 장소 목록 표시 */}
               {isEdit && (
                 <div className="border-t pt-4">
                   <h4 className="font-medium text-gray-900 mb-2">여행 코스</h4>
 
-                  <div className="max-h-[240px] overflow-y-auto">
-                    {initialLoading ? (
+                  <div className="h-[180px] overflow-y-auto">
+                    {showSkeleton ? (
                       <PlaceSkeleton />
+                    ) : localPlaces.length === 0 ? (
+                      <div className="flex h-full items-center justify-center">
+                        <p className="text-sm text-gray-400">아직 장소가 없어요</p>
+                      </div>
                     ) : (
                       <PlaceList
                         places={localPlaces}
-                        onReorder={handleReorder}
-                        onDelete={handleDeletePlace}
+                        onReorder={reorderPlaces}
+                        onDelete={deletePlace}
                         onOpenDetail={handleOpenDetail}
                         placePhotosCounts={photosCounts}
                       />
@@ -372,8 +287,8 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
 
                   <button
                     type="button"
-                    onClick={() => setPlaceAddModalOpen(true)}
-                    disabled={initialLoading}
+                    onClick={openPlaceAddModal}
+                    disabled={showSkeleton}
                     className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-3 py-3 text-sm text-gray-500 hover:border-pink-300 hover:text-pink-500 disabled:opacity-50"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
@@ -385,31 +300,70 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
               )}
 
               <div className="flex gap-3 pt-2">
-                {isEdit && (
-                  <button
-                    type="button"
-                    onClick={handleDelete}
-                    disabled={saving}
-                    className="flex items-center justify-center rounded-lg border border-red-300 px-4 py-3 text-red-600 hover:bg-red-50 disabled:opacity-50"
-                  >
-                    {saving ? <Spinner /> : '삭제'}
-                  </button>
+                {isEdit ? (
+                  isEditing ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleDelete}
+                        disabled={saving}
+                        className="flex items-center justify-center rounded-lg border border-red-300 px-4 py-3 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        {saving ? <Spinner /> : '삭제'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelEdit}
+                        disabled={saving}
+                        className="flex-1 rounded-lg border border-gray-300 px-4 py-3 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        취소
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={saving || !title.trim() || !hasChanges}
+                        className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-pink-500 px-4 py-3 font-semibold text-white hover:bg-pink-600 disabled:opacity-50"
+                      >
+                        {saving ? <Spinner /> : '저장'}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditing(true)}
+                        className="flex-1 rounded-lg border border-pink-300 px-4 py-3 text-pink-600 hover:bg-pink-50"
+                      >
+                        수정
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleClose}
+                        className="flex-1 rounded-lg bg-gray-100 px-4 py-3 text-gray-700 hover:bg-gray-200"
+                      >
+                        닫기
+                      </button>
+                    </>
+                  )
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleClose}
+                      disabled={saving}
+                      className="flex-1 rounded-lg border border-gray-300 px-4 py-3 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      취소
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={saving || !title.trim()}
+                      className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-pink-500 px-4 py-3 font-semibold text-white hover:bg-pink-600 disabled:opacity-50"
+                    >
+                      {saving ? <Spinner /> : '만들기'}
+                    </button>
+                  </>
                 )}
-                <button
-                  type="button"
-                  onClick={handleClose}
-                  disabled={saving}
-                  className="flex-1 rounded-lg border border-gray-300 px-4 py-3 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                >
-                  {isEdit ? '닫기' : '취소'}
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving || !title.trim() || (isEdit && !hasChanges)}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-pink-500 px-4 py-3 font-semibold text-white hover:bg-pink-600 disabled:opacity-50"
-                >
-                  {saving ? <Spinner /> : isEdit ? '저장' : '만들기'}
-                </button>
               </div>
             </form>
           </Modal.Body>
@@ -417,17 +371,17 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
       </Modal.Root>
 
       <PlaceDetailModal
-        open={detailModal.open}
-        place={detailModal.place}
-        onClose={() => setDetailModal({ open: false, place: null })}
+        open={detailModalOpen}
+        place={detailModalPlace}
+        onClose={handleCloseDetail}
         onSave={handleSavePlace}
-        onPhotosChange={handlePhotosChange}
+        onPhotosChange={() => {}}
         supabaseUrl={supabaseUrl}
       />
 
       <PlaceAddModal
         open={placeAddModalOpen}
-        onClose={() => setPlaceAddModalOpen(false)}
+        onClose={closePlaceAddModal}
         onAdd={handleAddPlace}
       />
     </>
