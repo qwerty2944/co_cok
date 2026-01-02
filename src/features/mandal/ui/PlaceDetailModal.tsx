@@ -241,11 +241,12 @@ export function PlaceDetailModal({
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    disabled={!isEditing}
-                    className={`absolute inset-0 w-full rounded-lg px-3 py-2 text-gray-900 focus:outline-none ${
+                    readOnly={!isEditing}
+                    tabIndex={isEditing ? 0 : -1}
+                    className={`absolute inset-0 w-full rounded-lg px-3 py-2 text-gray-900 outline-none ${
                       isEditing
-                        ? 'border border-gray-300 bg-white focus:border-pink-500'
-                        : 'border border-transparent bg-gray-50'
+                        ? 'border border-gray-300 bg-white cursor-text'
+                        : 'border border-transparent bg-gray-50 cursor-default pointer-events-none'
                     }`}
                   />
                 </div>
@@ -264,14 +265,18 @@ export function PlaceDetailModal({
                   <textarea
                     value={memo}
                     onChange={(e) => setMemo(e.target.value)}
-                    disabled={!isEditing}
-                    placeholder={isEditing ? '메모 입력' : '메모 없음'}
-                    className={`absolute inset-0 w-full resize-none rounded-lg px-3 py-2 text-sm focus:outline-none ${
+                    readOnly={!isEditing}
+                    tabIndex={isEditing ? 0 : -1}
+                    placeholder={isEditing ? '메모 입력' : ''}
+                    className={`absolute inset-0 w-full resize-none rounded-lg px-3 py-2 text-sm outline-none ${
                       isEditing
-                        ? 'border border-gray-300 bg-white text-gray-900 focus:border-pink-500'
-                        : 'border border-transparent bg-gray-50 text-gray-600'
+                        ? 'border border-gray-300 bg-white text-gray-900 cursor-text'
+                        : 'border border-transparent bg-gray-50 text-gray-600 cursor-default pointer-events-none'
                     }`}
                   />
+                  {!isEditing && !memo && (
+                    <span className="pointer-events-none absolute left-3 top-2 text-sm text-gray-400">메모 없음</span>
+                  )}
                 </div>
               </div>
             </div>
