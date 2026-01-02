@@ -19,8 +19,17 @@ interface ThemeModalProps {
   onSuccess: () => void;
 }
 
+function Spinner() {
+  return (
+    <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+    </svg>
+  );
+}
+
 export function ThemeModal({ open, position, theme, groupId, onClose, onSuccess }: ThemeModalProps) {
-  const [name, setName] = useState(theme?.name || '');
+  const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,7 +37,7 @@ export function ThemeModal({ open, position, theme, groupId, onClose, onSuccess 
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || loading) return;
 
     setLoading(true);
     setError(null);
@@ -37,23 +46,24 @@ export function ThemeModal({ open, position, theme, groupId, onClose, onSuccess 
       ? await updateTheme(theme!.id, name.trim())
       : await createTheme(groupId, name.trim(), position);
 
+    setLoading(false);
+
     if ('error' in result && result.error) {
       setError(result.error);
-      setLoading(false);
     } else {
       onSuccess();
     }
   }
 
   async function handleDelete() {
-    if (!theme || !confirm('이 테마를 삭제하시겠어요? 테마 안의 모든 코스도 삭제됩니다.')) return;
+    if (!theme || loading || !confirm('이 테마를 삭제하시겠어요? 테마 안의 모든 코스도 삭제됩니다.')) return;
 
     setLoading(true);
     const result = await deleteTheme(theme.id);
+    setLoading(false);
 
     if ('error' in result && result.error) {
       setError(result.error);
-      setLoading(false);
     } else {
       onSuccess();
     }
@@ -64,6 +74,7 @@ export function ThemeModal({ open, position, theme, groupId, onClose, onSuccess 
     if (open) {
       setName(theme?.name || '');
       setError(null);
+      setLoading(false);
     }
   }, [open, theme]);
 
@@ -100,24 +111,25 @@ export function ThemeModal({ open, position, theme, groupId, onClose, onSuccess 
                   type="button"
                   onClick={handleDelete}
                   disabled={loading}
-                  className="rounded-lg border border-red-300 px-4 py-3 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  className="flex items-center justify-center rounded-lg border border-red-300 px-4 py-3 text-red-600 hover:bg-red-50 disabled:opacity-50"
                 >
-                  삭제
+                  {loading ? <Spinner /> : '삭제'}
                 </button>
               )}
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 rounded-lg border border-gray-300 px-4 py-3 text-gray-700 hover:bg-gray-50"
+                disabled={loading}
+                className="flex-1 rounded-lg border border-gray-300 px-4 py-3 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
               >
                 취소
               </button>
               <button
                 type="submit"
                 disabled={loading || !name.trim()}
-                className="flex-1 rounded-lg bg-pink-500 px-4 py-3 font-semibold text-white hover:bg-pink-600 disabled:opacity-50"
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-pink-500 px-4 py-3 font-semibold text-white hover:bg-pink-600 disabled:opacity-50"
               >
-                {loading ? '저장 중...' : isEdit ? '수정' : '만들기'}
+                {loading ? <Spinner /> : isEdit ? '수정' : '만들기'}
               </button>
             </div>
           </form>
