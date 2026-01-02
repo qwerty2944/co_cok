@@ -37,12 +37,22 @@ interface CourseDetail {
   photos: any[];
 }
 
+function Spinner() {
+  return (
+    <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+    </svg>
+  );
+}
+
 export function CourseModal({ open, themeId, position, course, onClose, onSuccess }: CourseModalProps) {
-  const [title, setTitle] = useState(course?.title || '');
+  const [title, setTitle] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<CourseDetail | null>(null);
   const [newPlaceName, setNewPlaceName] = useState('');
+  const [addingPlace, setAddingPlace] = useState(false);
 
   const isEdit = !!course;
 
@@ -65,7 +75,7 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim() || loading) return;
 
     setLoading(true);
     setError(null);
@@ -74,33 +84,36 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
       ? await updateCourse(course!.id, title.trim())
       : await createCourse(themeId, title.trim(), position);
 
+    setLoading(false);
+
     if ('error' in result && result.error) {
       setError(result.error);
-      setLoading(false);
     } else {
       onSuccess();
     }
   }
 
   async function handleDelete() {
-    if (!course || !confirm('이 코스를 삭제하시겠어요?')) return;
+    if (!course || loading || !confirm('이 코스를 삭제하시겠어요?')) return;
 
     setLoading(true);
     const result = await deleteCourse(course.id);
+    setLoading(false);
 
     if ('error' in result && result.error) {
       setError(result.error);
-      setLoading(false);
     } else {
       onSuccess();
     }
   }
 
-  async function handleAddPlace(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newPlaceName.trim() || !course) return;
+  async function handleAddPlace() {
+    if (!newPlaceName.trim() || !course || addingPlace) return;
 
+    setAddingPlace(true);
     const result = await addPlace(course.id, newPlaceName.trim());
+    setAddingPlace(false);
+
     if (result.success) {
       setNewPlaceName('');
       loadDetail();
@@ -126,6 +139,8 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
       setTitle(course?.title || '');
       setError(null);
       setNewPlaceName('');
+      setLoading(false);
+      setAddingPlace(false);
     }
   }, [open, course]);
 
@@ -167,22 +182,24 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
                   onDelete={handleDeletePlace}
                 />
 
-                <form onSubmit={handleAddPlace} className="flex gap-2 mt-3">
+                <div className="flex gap-2 mt-3">
                   <input
                     type="text"
                     value={newPlaceName}
                     onChange={(e) => setNewPlaceName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddPlace())}
                     placeholder="장소 추가"
                     className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-pink-500 focus:outline-none"
                   />
                   <button
-                    type="submit"
-                    disabled={!newPlaceName.trim()}
-                    className="rounded-lg bg-pink-500 px-3 py-2 text-sm text-white hover:bg-pink-600 disabled:opacity-50"
+                    type="button"
+                    onClick={handleAddPlace}
+                    disabled={!newPlaceName.trim() || addingPlace}
+                    className="flex items-center justify-center rounded-lg bg-pink-500 px-3 py-2 text-sm text-white hover:bg-pink-600 disabled:opacity-50"
                   >
-                    추가
+                    {addingPlace ? <Spinner /> : '추가'}
                   </button>
-                </form>
+                </div>
               </div>
             )}
 
@@ -204,24 +221,25 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
                   type="button"
                   onClick={handleDelete}
                   disabled={loading}
-                  className="rounded-lg border border-red-300 px-4 py-3 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  className="flex items-center justify-center rounded-lg border border-red-300 px-4 py-3 text-red-600 hover:bg-red-50 disabled:opacity-50"
                 >
-                  삭제
+                  {loading ? <Spinner /> : '삭제'}
                 </button>
               )}
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 rounded-lg border border-gray-300 px-4 py-3 text-gray-700 hover:bg-gray-50"
+                disabled={loading}
+                className="flex-1 rounded-lg border border-gray-300 px-4 py-3 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
               >
                 {isEdit ? '닫기' : '취소'}
               </button>
               <button
                 type="submit"
                 disabled={loading || !title.trim()}
-                className="flex-1 rounded-lg bg-pink-500 px-4 py-3 font-semibold text-white hover:bg-pink-600 disabled:opacity-50"
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-pink-500 px-4 py-3 font-semibold text-white hover:bg-pink-600 disabled:opacity-50"
               >
-                {loading ? '저장 중...' : isEdit ? '수정' : '만들기'}
+                {loading ? <Spinner /> : isEdit ? '수정' : '만들기'}
               </button>
             </div>
           </form>
