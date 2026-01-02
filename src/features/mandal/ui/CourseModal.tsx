@@ -8,6 +8,7 @@ import { createCourse, deleteCourse, getCourseDetail, saveCourseChanges } from '
 import { getPlacePhotosCounts } from '../api/photos';
 import { PlaceList } from './PlaceList';
 import { PlacePhotoModal } from './PlacePhotoModal';
+import { PlaceAddModal } from './PlaceAddModal';
 
 interface Course {
   id: string;
@@ -31,6 +32,8 @@ interface LocalPlace {
   address: string | null;
   order_index: number;
   memo: string | null;
+  latitude: number | null;
+  longitude: number | null;
   isNew?: boolean;
 }
 
@@ -69,7 +72,6 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
   // 로컬 상태
   const [localPlaces, setLocalPlaces] = useState<LocalPlace[]>([]);
   const [deletedPlaceIds, setDeletedPlaceIds] = useState<string[]>([]);
-  const [newPlaceName, setNewPlaceName] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
 
   // 원본 데이터 (변경 감지용)
@@ -83,6 +85,9 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
     placeName: '',
   });
   const [photosCounts, setPhotosCounts] = useState<Record<string, number>>({});
+
+  // 장소 추가 모달 상태
+  const [placeAddModalOpen, setPlaceAddModalOpen] = useState(false);
 
   const isEdit = !!course;
 
@@ -181,6 +186,9 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
         id: p.id,
         name: p.name,
         address: p.address,
+        memo: p.memo,
+        latitude: p.latitude,
+        longitude: p.longitude,
         isNew: p.isNew,
       })),
       deletedPlaceIds
@@ -209,21 +217,26 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
     }
   }
 
-  // 로컬 장소 추가
-  function handleAddPlace() {
-    if (!newPlaceName.trim()) return;
-
+  // 로컬 장소 추가 (모달에서 받은 데이터로)
+  function handleAddPlace(placeData: {
+    name: string;
+    address: string | null;
+    memo: string | null;
+    latitude: number | null;
+    longitude: number | null;
+  }) {
     const newPlace: LocalPlace = {
       id: `new-${Date.now()}`,
-      name: newPlaceName.trim(),
-      address: null,
+      name: placeData.name,
+      address: placeData.address,
       order_index: localPlaces.length,
-      memo: null,
+      memo: placeData.memo,
+      latitude: placeData.latitude,
+      longitude: placeData.longitude,
       isNew: true,
     };
 
     setLocalPlaces([...localPlaces, newPlace]);
-    setNewPlaceName('');
   }
 
   // 로컬 장소 삭제
@@ -271,7 +284,6 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
   useEffect(() => {
     if (open) {
       setError(null);
-      setNewPlaceName('');
       setSaving(false);
       if (course) {
         setInitialLoading(true);
@@ -325,25 +337,17 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
                     />
                   )}
 
-                  <div className="flex gap-2 mt-3">
-                    <input
-                      type="text"
-                      value={newPlaceName}
-                      onChange={(e) => setNewPlaceName(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddPlace())}
-                      placeholder="장소 추가"
-                      className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-pink-500 focus:outline-none"
-                      disabled={initialLoading}
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddPlace}
-                      disabled={!newPlaceName.trim() || initialLoading}
-                      className="flex items-center justify-center rounded-lg bg-pink-500 px-3 py-2 text-sm text-white hover:bg-pink-600 disabled:opacity-50"
-                    >
-                      추가
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPlaceAddModalOpen(true)}
+                    disabled={initialLoading}
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-3 py-3 text-sm text-gray-500 hover:border-pink-300 hover:text-pink-500 disabled:opacity-50"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                    장소 추가
+                  </button>
                 </div>
               )}
 
@@ -386,6 +390,12 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
         onClose={() => setPhotoModal({ open: false, placeId: '', placeName: '' })}
         onPhotosChange={handlePhotosChange}
         supabaseUrl={supabaseUrl}
+      />
+
+      <PlaceAddModal
+        open={placeAddModalOpen}
+        onClose={() => setPlaceAddModalOpen(false)}
+        onAdd={handleAddPlace}
       />
     </>
   );

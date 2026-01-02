@@ -164,6 +164,8 @@ export async function getCourseDetail(courseId: string) {
         id,
         name,
         address,
+        latitude,
+        longitude,
         order_index,
         memo
       ),
@@ -263,6 +265,9 @@ interface PlaceData {
   id: string;
   name: string;
   address: string | null;
+  memo: string | null;
+  latitude: number | null;
+  longitude: number | null;
   isNew?: boolean;
 }
 
@@ -308,6 +313,9 @@ export async function saveCourseChanges(
           course_id: courseId,
           name: place.name,
           address: place.address,
+          memo: place.memo,
+          latitude: place.latitude,
+          longitude: place.longitude,
           order_index: i,
         });
 

@@ -70,6 +70,9 @@ function PlaceItem({
         {place.address && (
           <p className="text-xs text-gray-500 truncate">{place.address}</p>
         )}
+        {place.memo && (
+          <p className="text-xs text-pink-500 truncate">{place.memo}</p>
+        )}
       </div>
 
       {/* 사진 버튼 */}
