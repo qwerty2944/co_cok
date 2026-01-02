@@ -15,3 +15,4 @@ export {
 export { MandalGrid } from './ui/MandalGrid';
 export { ThemeModal } from './ui/ThemeModal';
 export { CourseModal } from './ui/CourseModal';
+export { useMandalStore } from './store/useMandalStore';

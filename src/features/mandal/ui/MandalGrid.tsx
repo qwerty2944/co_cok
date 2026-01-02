@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useMandalStore } from '../store/useMandalStore';
 import { ThemeModal } from './ThemeModal';
 import { CourseModal } from './CourseModal';
 
@@ -26,7 +26,6 @@ interface MandalGridProps {
   themes: Theme[];
 }
 
-// 테마 위치 매핑 (3x3 영역의 중앙)
 const THEME_POSITIONS: Record<number, { row: number; col: number }> = {
   1: { row: 1, col: 1 },
   2: { row: 1, col: 4 },
@@ -38,37 +37,25 @@ const THEME_POSITIONS: Record<number, { row: number; col: number }> = {
   8: { row: 4, col: 1 },
 };
 
-// 각 테마의 코스 위치 (테마 중심 기준 8방향)
 const COURSE_OFFSETS = [
-  { row: -1, col: -1 }, // 좌상
-  { row: -1, col: 0 },  // 상
-  { row: -1, col: 1 },  // 우상
-  { row: 0, col: -1 },  // 좌
-  { row: 0, col: 1 },   // 우
-  { row: 1, col: -1 },  // 좌하
-  { row: 1, col: 0 },   // 하
-  { row: 1, col: 1 },   // 우하
+  { row: -1, col: -1 },
+  { row: -1, col: 0 },
+  { row: -1, col: 1 },
+  { row: 0, col: -1 },
+  { row: 0, col: 1 },
+  { row: 1, col: -1 },
+  { row: 1, col: 0 },
+  { row: 1, col: 1 },
 ];
 
 export function MandalGrid({ groupId, groupName, themes }: MandalGridProps) {
   const router = useRouter();
-  const [themeModal, setThemeModal] = useState<{ open: boolean; position: number; theme?: Theme }>({
-    open: false,
-    position: 0,
-  });
-  const [courseModal, setCourseModal] = useState<{ open: boolean; themeId: string; position: number; course?: Course }>({
-    open: false,
-    themeId: '',
-    position: 0,
-  });
+  const { themeModal, courseModal, openThemeModal, closeThemeModal, openCourseModal, closeCourseModal } = useMandalStore();
 
-  // 테마를 position으로 매핑
   const themeMap = new Map<number, Theme>();
   themes.forEach((t) => themeMap.set(t.position, t));
 
-  // 셀 렌더링
   function renderCell(row: number, col: number) {
-    // 중앙 (팀 이름)
     if (row === 4 && col === 4) {
       return (
         <div className="flex h-full items-center justify-center bg-gradient-to-br from-pink-500 to-rose-400 text-white font-bold text-sm rounded-lg shadow-lg">
@@ -77,14 +64,13 @@ export function MandalGrid({ groupId, groupName, themes }: MandalGridProps) {
       );
     }
 
-    // 테마 위치인지 확인
     for (let themePos = 1; themePos <= 8; themePos++) {
       const pos = THEME_POSITIONS[themePos];
       if (pos.row === row && pos.col === col) {
         const theme = themeMap.get(themePos);
         return (
           <button
-            onClick={() => setThemeModal({ open: true, position: themePos, theme })}
+            onClick={() => openThemeModal(themePos, theme)}
             className={`flex h-full w-full items-center justify-center rounded-lg text-xs font-medium transition-all ${
               theme
                 ? 'bg-pink-100 text-pink-700 hover:bg-pink-200'
@@ -96,7 +82,6 @@ export function MandalGrid({ groupId, groupName, themes }: MandalGridProps) {
         );
       }
 
-      // 코스 위치인지 확인
       const theme = themeMap.get(themePos);
       if (theme) {
         for (let coursePos = 0; coursePos < 8; coursePos++) {
@@ -105,7 +90,7 @@ export function MandalGrid({ groupId, groupName, themes }: MandalGridProps) {
             const course = theme.courses.find((c) => c.position === coursePos + 1);
             return (
               <button
-                onClick={() => setCourseModal({ open: true, themeId: theme.id, position: coursePos + 1, course })}
+                onClick={() => openCourseModal(theme.id, coursePos + 1, course)}
                 className={`flex h-full w-full items-center justify-center rounded-lg text-xs transition-all ${
                   course
                     ? 'bg-white text-gray-700 hover:bg-pink-50 shadow-sm border border-pink-100'
@@ -120,8 +105,13 @@ export function MandalGrid({ groupId, groupName, themes }: MandalGridProps) {
       }
     }
 
-    // 빈 셀 (테마가 없는 영역)
     return <div className="bg-gray-50 rounded-lg" />;
+  }
+
+  function handleSuccess() {
+    closeThemeModal();
+    closeCourseModal();
+    router.refresh();
   }
 
   return (
@@ -145,11 +135,8 @@ export function MandalGrid({ groupId, groupName, themes }: MandalGridProps) {
         position={themeModal.position}
         theme={themeModal.theme}
         groupId={groupId}
-        onClose={() => setThemeModal({ open: false, position: 0 })}
-        onSuccess={() => {
-          setThemeModal({ open: false, position: 0 });
-          router.refresh();
-        }}
+        onClose={closeThemeModal}
+        onSuccess={handleSuccess}
       />
 
       <CourseModal
@@ -157,11 +144,8 @@ export function MandalGrid({ groupId, groupName, themes }: MandalGridProps) {
         themeId={courseModal.themeId}
         position={courseModal.position}
         course={courseModal.course}
-        onClose={() => setCourseModal({ open: false, themeId: '', position: 0 })}
-        onSuccess={() => {
-          setCourseModal({ open: false, themeId: '', position: 0 });
-          router.refresh();
-        }}
+        onClose={closeCourseModal}
+        onSuccess={handleSuccess}
       />
     </>
   );
