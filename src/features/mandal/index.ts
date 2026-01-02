@@ -10,6 +10,7 @@ export {
   addPlace,
   deletePlace,
   reorderPlaces,
+  saveCourseChanges,
 } from './api/mandal';
 
 export { MandalGrid } from './ui/MandalGrid';

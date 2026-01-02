@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import { Modal } from '@/shared/ui/Modal';
-import { createCourse, updateCourse, deleteCourse, getCourseDetail, addPlace, deletePlace, reorderPlaces } from '../api/mandal';
+import { createCourse, deleteCourse, getCourseDetail, saveCourseChanges } from '../api/mandal';
 import { PlaceList } from './PlaceList';
 
 interface Course {
@@ -22,21 +22,13 @@ interface CourseModalProps {
   onSuccess: () => void;
 }
 
-interface Place {
+interface LocalPlace {
   id: string;
   name: string;
   address: string | null;
   order_index: number;
   memo: string | null;
-}
-
-interface CourseDetail {
-  id: string;
-  title: string;
-  description: string | null;
-  date: string | null;
-  places: Place[];
-  photos: any[];
+  isNew?: boolean;
 }
 
 function Spinner() {
@@ -67,46 +59,106 @@ function PlaceSkeleton() {
 
 export function CourseModal({ open, themeId, position, course, onClose, onSuccess }: CourseModalProps) {
   const [title, setTitle] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [detailLoading, setDetailLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [detail, setDetail] = useState<CourseDetail | null>(null);
+
+  // 로컬 상태
+  const [localPlaces, setLocalPlaces] = useState<LocalPlace[]>([]);
+  const [deletedPlaceIds, setDeletedPlaceIds] = useState<string[]>([]);
   const [newPlaceName, setNewPlaceName] = useState('');
-  const [addingPlace, setAddingPlace] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+
+  // 원본 데이터 (변경 감지용)
+  const [originalTitle, setOriginalTitle] = useState('');
+  const [originalPlaces, setOriginalPlaces] = useState<LocalPlace[]>([]);
 
   const isEdit = !!course;
 
-  // 코스 상세 로드
+  // 초기 데이터 로드 (모달 열릴 때 한 번만)
   useEffect(() => {
     if (open && course) {
-      loadDetail();
-    } else {
-      setDetail(null);
+      loadInitialData();
+    } else if (open && !course) {
+      // 새 코스 생성
+      setTitle('');
+      setLocalPlaces([]);
+      setDeletedPlaceIds([]);
+      setOriginalTitle('');
+      setOriginalPlaces([]);
+      setHasChanges(false);
     }
-  }, [open, course]);
+  }, [open, course?.id]);
 
-  async function loadDetail() {
+  async function loadInitialData() {
     if (!course) return;
-    setDetailLoading(true);
+
+    setInitialLoading(true);
+    setError(null);
+
     const result = await getCourseDetail(course.id);
-    setDetailLoading(false);
+    setInitialLoading(false);
+
     if (result.success && result.course) {
-      setDetail(result.course);
+      const places = result.course.places || [];
+      setTitle(result.course.title);
+      setLocalPlaces(places);
+      setOriginalTitle(result.course.title);
+      setOriginalPlaces(JSON.parse(JSON.stringify(places)));
+      setDeletedPlaceIds([]);
+      setHasChanges(false);
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!title.trim() || loading) return;
+  // 변경 감지
+  useEffect(() => {
+    if (!isEdit) return;
 
-    setLoading(true);
+    const titleChanged = title !== originalTitle;
+    const placesChanged = JSON.stringify(localPlaces) !== JSON.stringify(originalPlaces);
+    const hasDeleted = deletedPlaceIds.length > 0;
+
+    setHasChanges(titleChanged || placesChanged || hasDeleted);
+  }, [title, localPlaces, deletedPlaceIds, originalTitle, originalPlaces, isEdit]);
+
+  // 새 코스 생성
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim() || saving) return;
+
+    setSaving(true);
     setError(null);
 
-    const result = isEdit
-      ? await updateCourse(course!.id, title.trim())
-      : await createCourse(themeId, title.trim(), position);
+    const result = await createCourse(themeId, title.trim(), position);
+    setSaving(false);
 
-    setLoading(false);
+    if ('error' in result && result.error) {
+      setError(result.error);
+    } else {
+      onSuccess();
+    }
+  }
+
+  // 기존 코스 저장
+  async function handleSave() {
+    if (!course || saving || !hasChanges) return;
+
+    setSaving(true);
+    setError(null);
+
+    const result = await saveCourseChanges(
+      course.id,
+      title.trim(),
+      localPlaces.map((p) => ({
+        id: p.id,
+        name: p.name,
+        address: p.address,
+        isNew: p.isNew,
+      })),
+      deletedPlaceIds
+    );
+
+    setSaving(false);
 
     if ('error' in result && result.error) {
       setError(result.error);
@@ -116,11 +168,11 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
   }
 
   async function handleDelete() {
-    if (!course || loading || !confirm('이 코스를 삭제하시겠어요?')) return;
+    if (!course || saving || !confirm('이 코스를 삭제하시겠어요?')) return;
 
-    setLoading(true);
+    setSaving(true);
     const result = await deleteCourse(course.id);
-    setLoading(false);
+    setSaving(false);
 
     if ('error' in result && result.error) {
       setError(result.error);
@@ -129,53 +181,72 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
     }
   }
 
-  async function handleAddPlace() {
-    if (!newPlaceName.trim() || !course || addingPlace) return;
+  // 로컬 장소 추가
+  function handleAddPlace() {
+    if (!newPlaceName.trim()) return;
 
-    setAddingPlace(true);
-    const result = await addPlace(course.id, newPlaceName.trim());
-    setAddingPlace(false);
+    const newPlace: LocalPlace = {
+      id: `new-${Date.now()}`,
+      name: newPlaceName.trim(),
+      address: null,
+      order_index: localPlaces.length,
+      memo: null,
+      isNew: true,
+    };
 
-    if (result.success) {
-      setNewPlaceName('');
-      loadDetail();
-    }
+    setLocalPlaces([...localPlaces, newPlace]);
+    setNewPlaceName('');
   }
 
-  async function handleDeletePlace(placeId: string) {
-    const result = await deletePlace(placeId);
-    if (result.success) {
-      loadDetail();
+  // 로컬 장소 삭제
+  function handleDeletePlace(placeId: string) {
+    const place = localPlaces.find((p) => p.id === placeId);
+    if (!place) return;
+
+    // 새로 추가된 장소가 아니면 삭제 목록에 추가
+    if (!place.isNew) {
+      setDeletedPlaceIds([...deletedPlaceIds, placeId]);
     }
+
+    setLocalPlaces(localPlaces.filter((p) => p.id !== placeId));
   }
 
-  async function handleReorder(placeIds: string[]) {
-    if (!course) return;
-    await reorderPlaces(course.id, placeIds);
-    loadDetail();
+  // 로컬 장소 순서 변경
+  function handleReorder(placeIds: string[]) {
+    const reordered = placeIds.map((id, index) => {
+      const place = localPlaces.find((p) => p.id === id)!;
+      return { ...place, order_index: index };
+    });
+    setLocalPlaces(reordered);
+  }
+
+  // 모달 닫기 (변경사항 있으면 확인)
+  function handleClose() {
+    if (hasChanges && !confirm('저장하지 않은 변경사항이 있어요. 닫으시겠어요?')) {
+      return;
+    }
+    onClose();
   }
 
   // 모달 열릴 때 초기화
   useEffect(() => {
     if (open) {
-      setTitle(course?.title || '');
       setError(null);
       setNewPlaceName('');
-      setLoading(false);
-      setAddingPlace(false);
-      // 편집 모드면 스켈레톤 먼저 보여주기
-      setDetailLoading(!!course);
-      setDetail(null);
+      setSaving(false);
+      if (course) {
+        setInitialLoading(true);
+      }
     }
   }, [open, course]);
 
   return (
-    <Modal.Root open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+    <Modal.Root open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
       <Modal.Content className="max-w-md">
         <Modal.Header>{isEdit ? '코스 상세' : '새 코스'}</Modal.Header>
 
         <Modal.Body>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={isEdit ? (e) => { e.preventDefault(); handleSave(); } : handleCreate} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 코스 이름
@@ -187,6 +258,7 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
                 placeholder="예: 강릉 1박2일"
                 className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500"
                 autoFocus={!isEdit}
+                disabled={initialLoading}
               />
             </div>
 
@@ -201,18 +273,14 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
               <div className="border-t pt-4">
                 <h4 className="font-medium text-gray-900 mb-2">여행 코스</h4>
 
-                {detailLoading ? (
+                {initialLoading ? (
                   <PlaceSkeleton />
-                ) : detail ? (
+                ) : (
                   <PlaceList
-                    places={detail.places}
+                    places={localPlaces}
                     onReorder={handleReorder}
                     onDelete={handleDeletePlace}
                   />
-                ) : (
-                  <p className="text-sm text-gray-400 text-center py-4">
-                    아직 장소가 없어요
-                  </p>
                 )}
 
                 <div className="flex gap-2 mt-3">
@@ -223,28 +291,16 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
                     onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddPlace())}
                     placeholder="장소 추가"
                     className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-pink-500 focus:outline-none"
-                    disabled={detailLoading}
+                    disabled={initialLoading}
                   />
                   <button
                     type="button"
                     onClick={handleAddPlace}
-                    disabled={!newPlaceName.trim() || addingPlace || detailLoading}
+                    disabled={!newPlaceName.trim() || initialLoading}
                     className="flex items-center justify-center rounded-lg bg-pink-500 px-3 py-2 text-sm text-white hover:bg-pink-600 disabled:opacity-50"
                   >
-                    {addingPlace ? <Spinner /> : '추가'}
+                    추가
                   </button>
-                </div>
-              </div>
-            )}
-
-            {/* 갤러리 (사진 있을 때만) */}
-            {isEdit && detail && detail.photos.length > 0 && (
-              <div className="border-t pt-4">
-                <h4 className="font-medium text-gray-900 mb-2">갤러리</h4>
-                <div className="grid grid-cols-3 gap-2">
-                  {detail.photos.map((photo: any) => (
-                    <div key={photo.id} className="aspect-square rounded-lg bg-gray-100" />
-                  ))}
                 </div>
               </div>
             )}
@@ -254,26 +310,26 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
                 <button
                   type="button"
                   onClick={handleDelete}
-                  disabled={loading}
+                  disabled={saving}
                   className="flex items-center justify-center rounded-lg border border-red-300 px-4 py-3 text-red-600 hover:bg-red-50 disabled:opacity-50"
                 >
-                  {loading ? <Spinner /> : '삭제'}
+                  {saving ? <Spinner /> : '삭제'}
                 </button>
               )}
               <button
                 type="button"
-                onClick={onClose}
-                disabled={loading}
+                onClick={handleClose}
+                disabled={saving}
                 className="flex-1 rounded-lg border border-gray-300 px-4 py-3 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
               >
                 {isEdit ? '닫기' : '취소'}
               </button>
               <button
                 type="submit"
-                disabled={loading || !title.trim()}
+                disabled={saving || !title.trim() || (isEdit && !hasChanges)}
                 className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-pink-500 px-4 py-3 font-semibold text-white hover:bg-pink-600 disabled:opacity-50"
               >
-                {loading ? <Spinner /> : isEdit ? '수정' : '만들기'}
+                {saving ? <Spinner /> : isEdit ? '저장' : '만들기'}
               </button>
             </div>
           </form>

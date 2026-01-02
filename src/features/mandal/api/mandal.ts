@@ -257,3 +257,75 @@ export async function reorderPlaces(courseId: string, placeIds: string[]) {
 
   return { success: true };
 }
+
+// 코스 일괄 저장 (제목 + 장소 추가/삭제/순서)
+interface PlaceData {
+  id: string;
+  name: string;
+  address: string | null;
+  isNew?: boolean;
+}
+
+export async function saveCourseChanges(
+  courseId: string,
+  title: string,
+  places: PlaceData[],
+  deletedPlaceIds: string[]
+) {
+  const supabase = await createClient();
+
+  // 1. 코스 제목 업데이트
+  const { error: titleError } = await supabase
+    .from('date_courses')
+    .update({ title })
+    .eq('id', courseId);
+
+  if (titleError) {
+    return { error: titleError.message };
+  }
+
+  // 2. 삭제된 장소 처리
+  if (deletedPlaceIds.length > 0) {
+    const { error: deleteError } = await supabase
+      .from('course_places')
+      .delete()
+      .in('id', deletedPlaceIds);
+
+    if (deleteError) {
+      return { error: deleteError.message };
+    }
+  }
+
+  // 3. 새 장소 추가 및 기존 장소 순서 업데이트
+  for (let i = 0; i < places.length; i++) {
+    const place = places[i];
+
+    if (place.isNew) {
+      // 새 장소 추가
+      const { error: insertError } = await supabase
+        .from('course_places')
+        .insert({
+          course_id: courseId,
+          name: place.name,
+          address: place.address,
+          order_index: i,
+        });
+
+      if (insertError) {
+        return { error: insertError.message };
+      }
+    } else {
+      // 기존 장소 순서 업데이트
+      const { error: updateError } = await supabase
+        .from('course_places')
+        .update({ order_index: i })
+        .eq('id', place.id);
+
+      if (updateError) {
+        return { error: updateError.message };
+      }
+    }
+  }
+
+  return { success: true };
+}
