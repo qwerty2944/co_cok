@@ -250,3 +250,61 @@ export async function acceptInvite(code: string) {
 
   return { success: true, groupId: validation.group.id, groupName: validation.group.name };
 }
+
+// 그룹 탈퇴
+export async function leaveGroup(groupId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: '로그인이 필요합니다' };
+  }
+
+  // 멤버십 확인
+  const { data: membership } = await supabase
+    .from('group_members')
+    .select('id, role')
+    .eq('group_id', groupId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (!membership) {
+    return { error: '이 그룹의 멤버가 아닙니다' };
+  }
+
+  // owner인 경우 다른 멤버가 있으면 탈퇴 불가
+  if (membership.role === 'owner') {
+    const { count: memberCount } = await supabase
+      .from('group_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('group_id', groupId);
+
+    if ((memberCount || 0) > 1) {
+      return { error: '그룹장은 다른 멤버가 있을 때 탈퇴할 수 없어요. 먼저 그룹장을 위임하거나 다른 멤버를 내보내주세요.' };
+    }
+
+    // 혼자면 그룹도 삭제
+    const { error: deleteError } = await supabase
+      .from('groups')
+      .delete()
+      .eq('id', groupId);
+
+    if (deleteError) {
+      return { error: deleteError.message };
+    }
+
+    return { success: true, groupDeleted: true };
+  }
+
+  // 일반 멤버는 바로 탈퇴
+  const { error: leaveError } = await supabase
+    .from('group_members')
+    .delete()
+    .eq('id', membership.id);
+
+  if (leaveError) {
+    return { error: leaveError.message };
+  }
+
+  return { success: true };
+}

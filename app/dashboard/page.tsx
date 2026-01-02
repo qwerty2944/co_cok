@@ -3,6 +3,7 @@ import { getUser, signOut } from '@/features/auth';
 import { createClient } from '@/shared/api/supabase/server';
 import { GroupSection } from './GroupSection';
 import { JoinCodeInput } from './JoinCodeInput';
+import { ProfileMenu } from './ProfileMenu';
 
 export default async function DashboardPage() {
   const user = await getUser();
@@ -29,21 +30,28 @@ export default async function DashboardPage() {
     `)
     .eq('user_id', user.id);
 
+  const groupList = groups?.map((item: any) => ({
+    id: item.group.id,
+    name: item.group.name,
+    invite_code: item.group.invite_code,
+  })) || [];
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
           <h1 className="text-2xl font-bold text-pink-500">CO_COK</h1>
-          <div className="flex items-center gap-4">
+          <div className="relative flex items-center gap-4">
             <JoinCodeInput />
-            <form action={signOut}>
-              <button
-                type="submit"
-                className="rounded-lg bg-gray-100 px-4 py-2 text-sm text-gray-700 hover:bg-gray-200"
-              >
-                로그아웃
-              </button>
-            </form>
+            <ProfileMenu
+              user={{
+                email: user.email || '',
+                nickname: profile?.nickname || null,
+                is_premium: profile?.is_premium || false,
+              }}
+              groups={groupList}
+              onSignOut={signOut}
+            />
           </div>
         </div>
       </header>
@@ -60,15 +68,7 @@ export default async function DashboardPage() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
-          <GroupSection
-            groups={
-              groups?.map((item: any) => ({
-                id: item.group.id,
-                name: item.group.name,
-                invite_code: item.group.invite_code,
-              })) || []
-            }
-          />
+          <GroupSection groups={groupList} />
 
           <div className="rounded-xl bg-white p-6 shadow">
             <h3 className="mb-4 text-lg font-semibold">최근 데이트 코스</h3>
