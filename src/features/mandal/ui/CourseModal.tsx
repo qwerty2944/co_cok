@@ -145,7 +145,7 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="예: 강릉 1박2일"
-                className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500"
+                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500"
                 autoFocus={!isEdit}
               />
             </div>
@@ -173,7 +173,7 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
                     value={newPlaceName}
                     onChange={(e) => setNewPlaceName(e.target.value)}
                     placeholder="장소 추가"
-                    className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:outline-none"
+                    className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-pink-500 focus:outline-none"
                   />
                   <button
                     type="submit"

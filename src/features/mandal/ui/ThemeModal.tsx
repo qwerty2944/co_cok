@@ -83,7 +83,7 @@ export function ThemeModal({ open, position, theme, groupId, onClose, onSuccess 
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="예: 국내여행, 드라이브, 맛집투어"
-                className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500"
+                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500"
                 autoFocus
               />
             </div>
