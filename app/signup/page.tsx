@@ -3,7 +3,7 @@ import { SignupForm } from '@/features/auth';
 
 export default function SignupPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-pink-100 to-purple-100 px-4">
+    <div className="flex h-[100dvh] items-center justify-center overflow-hidden bg-gradient-to-br from-pink-100 to-purple-100 px-4">
       <div className="w-full max-w-md">
         <div className="rounded-2xl bg-white p-8 shadow-xl">
           <div className="mb-8 text-center">
