@@ -94,10 +94,23 @@ function Content({ children, className }: ContentProps) {
 
   if (!isOpen) return null;
 
+  function handleOverlayClick(e: React.MouseEvent) {
+    // 오버레이 직접 클릭만 처리 (드래그 이벤트 버블링 무시)
+    if (e.target === e.currentTarget) {
+      close();
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={close} />
-      <div className={`relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl ${className || ''}`}>
+      <div
+        className="absolute inset-0 bg-black/50"
+        onMouseDown={handleOverlayClick}
+      />
+      <div
+        className={`relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl ${className || ''}`}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         {children}
       </div>
     </div>
