@@ -1,6 +1,7 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useMandalStore } from '../store/useMandalStore';
 import { ThemeModal } from './ThemeModal';
 import { CourseModal } from './CourseModal';
@@ -51,10 +52,42 @@ const COURSE_OFFSETS = [
 
 export function MandalGrid({ groupId, groupName, themes, supabaseUrl }: MandalGridProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { themeModal, courseModal, openThemeModal, closeThemeModal, openCourseModal, closeCourseModal } = useMandalStore();
 
   const themeMap = new Map<number, Theme>();
   themes.forEach((t) => themeMap.set(t.position, t));
+
+  // URL에서 코스 ID 읽어서 모달 열기
+  useEffect(() => {
+    const courseId = searchParams.get('course');
+    if (courseId && !courseModal.open) {
+      // 코스 ID로 테마와 코스 찾기
+      for (const theme of themes) {
+        const course = theme.courses.find((c) => c.id === courseId);
+        if (course) {
+          openCourseModal(theme.id, course.position, course);
+          break;
+        }
+      }
+    } else if (!courseId && courseModal.open) {
+      closeCourseModal();
+    }
+  }, [searchParams]);
+
+  // 코스 모달 열기 (URL 업데이트 포함)
+  function handleOpenCourseModal(themeId: string, position: number, course?: Course) {
+    if (course) {
+      router.push(`?course=${course.id}`, { scroll: false });
+    }
+    openCourseModal(themeId, position, course);
+  }
+
+  // 코스 모달 닫기 (URL 업데이트 포함)
+  function handleCloseCourseModal() {
+    router.push('?', { scroll: false });
+    closeCourseModal();
+  }
 
   function renderCell(row: number, col: number) {
     if (row === 4 && col === 4) {
@@ -91,7 +124,7 @@ export function MandalGrid({ groupId, groupName, themes, supabaseUrl }: MandalGr
             const course = theme.courses.find((c) => c.position === coursePos + 1);
             return (
               <button
-                onClick={() => openCourseModal(theme.id, coursePos + 1, course)}
+                onClick={() => handleOpenCourseModal(theme.id, coursePos + 1, course)}
                 className={`flex h-full w-full items-center justify-center rounded-lg text-xs transition-all ${
                   course
                     ? 'bg-white text-gray-700 hover:bg-pink-50 shadow-sm border border-pink-100'
@@ -111,7 +144,7 @@ export function MandalGrid({ groupId, groupName, themes, supabaseUrl }: MandalGr
 
   function handleSuccess() {
     closeThemeModal();
-    closeCourseModal();
+    handleCloseCourseModal();
     router.refresh();
   }
 
@@ -145,7 +178,7 @@ export function MandalGrid({ groupId, groupName, themes, supabaseUrl }: MandalGr
         themeId={courseModal.themeId}
         position={courseModal.position}
         course={courseModal.course}
-        onClose={closeCourseModal}
+        onClose={handleCloseCourseModal}
         onSuccess={handleSuccess}
         supabaseUrl={supabaseUrl}
       />

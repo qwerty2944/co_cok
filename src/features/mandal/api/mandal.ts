@@ -67,8 +67,7 @@ export async function getThemes(groupId: string) {
       courses:date_courses (
         id,
         title,
-        position,
-        date
+        position
       )
     `)
     .eq('group_id', groupId)
@@ -82,7 +81,7 @@ export async function getThemes(groupId: string) {
 }
 
 // 코스 생성
-export async function createCourse(themeId: string, title: string, position: number, date?: string) {
+export async function createCourse(themeId: string, title: string, position: number) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -108,7 +107,6 @@ export async function createCourse(themeId: string, title: string, position: num
       group_id: theme.group_id,
       title,
       position,
-      date: date || null,
       created_by: user.id,
     })
     .select()
@@ -122,12 +120,12 @@ export async function createCourse(themeId: string, title: string, position: num
 }
 
 // 코스 수정
-export async function updateCourse(courseId: string, title: string, description?: string, date?: string) {
+export async function updateCourse(courseId: string, title: string, description?: string) {
   const supabase = await createClient();
 
   const { error } = await supabase
     .from('date_courses')
-    .update({ title, description, date })
+    .update({ title, description })
     .eq('id', courseId);
 
   if (error) {
@@ -164,11 +162,12 @@ export async function getCourseDetail(courseId: string) {
       places:course_places (
         id,
         name,
-        address,
         latitude,
         longitude,
         order_index,
-        memo
+        memo,
+        start_date,
+        end_date
       ),
       photos (
         id,
@@ -192,7 +191,7 @@ export async function getCourseDetail(courseId: string) {
 }
 
 // 장소 추가
-export async function addPlace(courseId: string, name: string, address?: string, memo?: string) {
+export async function addPlace(courseId: string, name: string, memo?: string) {
   const supabase = await createClient();
 
   // 현재 최대 order_index 조회
@@ -211,7 +210,6 @@ export async function addPlace(courseId: string, name: string, address?: string,
     .insert({
       course_id: courseId,
       name,
-      address,
       memo,
       order_index: newOrderIndex,
     })
@@ -268,22 +266,23 @@ interface PlaceData {
   memo: string | null;
   latitude: number | null;
   longitude: number | null;
+  start_date?: string | null;
+  end_date?: string | null;
   isNew?: boolean;
 }
 
 export async function saveCourseChanges(
   courseId: string,
   title: string,
-  date: string | null,
   places: PlaceData[],
   deletedPlaceIds: string[]
 ) {
   const supabase = await createClient();
 
-  // 1. 코스 제목, 날짜 업데이트
+  // 1. 코스 제목 업데이트
   const { error: titleError } = await supabase
     .from('date_courses')
-    .update({ title, date })
+    .update({ title })
     .eq('id', courseId);
 
   if (titleError) {
@@ -323,13 +322,15 @@ export async function saveCourseChanges(
         return { error: insertError.message };
       }
     } else {
-      // 기존 장소 업데이트 (이름, 메모, 순서)
+      // 기존 장소 업데이트 (이름, 메모, 순서, 날짜)
       const { error: updateError } = await supabase
         .from('course_places')
         .update({
           name: place.name,
           memo: place.memo,
           order_index: i,
+          start_date: place.start_date,
+          end_date: place.end_date,
         })
         .eq('id', place.id);
 
@@ -337,6 +338,34 @@ export async function saveCourseChanges(
         return { error: updateError.message };
       }
     }
+  }
+
+  return { success: true };
+}
+
+// 장소 날짜 업데이트
+export async function updatePlaceDates(
+  placeId: string,
+  startDate: string | null,
+  endDate: string | null
+) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: '로그인이 필요합니다' };
+  }
+
+  const { error } = await supabase
+    .from('course_places')
+    .update({
+      start_date: startDate,
+      end_date: endDate,
+    })
+    .eq('id', placeId);
+
+  if (error) {
+    return { error: error.message };
   }
 
   return { success: true };

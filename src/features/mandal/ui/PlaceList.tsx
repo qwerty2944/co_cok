@@ -45,6 +45,7 @@ function PlaceItem({
       {/* 순서 변경 버튼 */}
       <div className="flex flex-col gap-0.5" onClick={(e) => e.stopPropagation()}>
         <button
+          type="button"
           onClick={onMoveUp}
           disabled={index === 0}
           className="p-0.5 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
@@ -55,6 +56,7 @@ function PlaceItem({
           </svg>
         </button>
         <button
+          type="button"
           onClick={onMoveDown}
           disabled={index === total - 1}
           className="p-0.5 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
@@ -95,6 +97,7 @@ function PlaceItem({
 
       {/* 삭제 버튼 */}
       <button
+        type="button"
         onClick={(e) => {
           e.stopPropagation();
           onDelete();
