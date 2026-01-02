@@ -69,7 +69,12 @@ export default async function GroupPage({ params }: Props) {
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-8">
-        <MandalGrid groupId={id} groupName={group.name} themes={themes || []} />
+        <MandalGrid
+          groupId={id}
+          groupName={group.name}
+          themes={themes || []}
+          supabaseUrl={process.env.NEXT_PUBLIC_SUPABASE_URL!}
+        />
       </main>
     </div>
   );

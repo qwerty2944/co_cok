@@ -24,6 +24,7 @@ interface MandalGridProps {
   groupId: string;
   groupName: string;
   themes: Theme[];
+  supabaseUrl: string;
 }
 
 const THEME_POSITIONS: Record<number, { row: number; col: number }> = {
@@ -48,7 +49,7 @@ const COURSE_OFFSETS = [
   { row: 1, col: 1 },
 ];
 
-export function MandalGrid({ groupId, groupName, themes }: MandalGridProps) {
+export function MandalGrid({ groupId, groupName, themes, supabaseUrl }: MandalGridProps) {
   const router = useRouter();
   const { themeModal, courseModal, openThemeModal, closeThemeModal, openCourseModal, closeCourseModal } = useMandalStore();
 
@@ -146,6 +147,7 @@ export function MandalGrid({ groupId, groupName, themes }: MandalGridProps) {
         course={courseModal.course}
         onClose={closeCourseModal}
         onSuccess={handleSuccess}
+        supabaseUrl={supabaseUrl}
       />
     </>
   );

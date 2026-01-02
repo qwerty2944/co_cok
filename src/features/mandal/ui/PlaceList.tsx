@@ -1,25 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-  DragStartEvent,
-  DragOverlay,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 
 interface Place {
   id: string;
@@ -27,27 +8,63 @@ interface Place {
   address: string | null;
   order_index: number;
   memo: string | null;
+  isNew?: boolean;
 }
 
 interface PlaceListProps {
   places: Place[];
   onReorder: (placeIds: string[]) => void;
   onDelete: (placeId: string) => void;
+  onOpenPhotos?: (placeId: string, placeName: string) => void;
+  placePhotosCounts?: Record<string, number>;
 }
 
-function PlaceItem({ place, isDragging }: { place: Place; isDragging?: boolean }) {
+function PlaceItem({
+  place,
+  index,
+  total,
+  onMoveUp,
+  onMoveDown,
+  onDelete,
+  onOpenPhotos,
+  photoCount,
+}: {
+  place: Place;
+  index: number;
+  total: number;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onDelete: () => void;
+  onOpenPhotos?: () => void;
+  photoCount?: number;
+}) {
   return (
-    <div
-      className={`flex items-center gap-2 rounded-lg border bg-white p-2 ${
-        isDragging ? 'shadow-lg border-pink-300' : 'border-gray-200'
-      }`}
-    >
-      <div className="cursor-grab text-gray-400 hover:text-gray-600 touch-none">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-        </svg>
+    <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-2">
+      {/* 순서 변경 버튼 */}
+      <div className="flex flex-col gap-0.5">
+        <button
+          onClick={onMoveUp}
+          disabled={index === 0}
+          className="p-0.5 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+          title="위로"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+          </svg>
+        </button>
+        <button
+          onClick={onMoveDown}
+          disabled={index === total - 1}
+          className="p-0.5 text-gray-400 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed"
+          title="아래로"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+          </svg>
+        </button>
       </div>
 
+      {/* 장소 정보 */}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-gray-900 truncate">{place.name}</p>
         {place.address && (
@@ -55,55 +72,29 @@ function PlaceItem({ place, isDragging }: { place: Place; isDragging?: boolean }
         )}
       </div>
 
-      <div className="w-4 h-4" />
-    </div>
-  );
-}
+      {/* 사진 버튼 */}
+      {onOpenPhotos && !place.isNew && (
+        <button
+          onClick={onOpenPhotos}
+          className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs ${
+            photoCount && photoCount > 0
+              ? 'bg-pink-100 text-pink-600'
+              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+          }`}
+          title="사진"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+          </svg>
+          {photoCount && photoCount > 0 ? photoCount : null}
+        </button>
+      )}
 
-function SortablePlace({ place, onDelete }: { place: Place; onDelete: () => void }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: place.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`flex items-center gap-2 rounded-lg border bg-white p-2 ${
-        isDragging ? 'border-pink-300' : 'border-gray-200'
-      }`}
-    >
-      <button
-        {...attributes}
-        {...listeners}
-        className="cursor-grab text-gray-400 hover:text-gray-600 touch-none"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-        </svg>
-      </button>
-
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-900 truncate">{place.name}</p>
-        {place.address && (
-          <p className="text-xs text-gray-500 truncate">{place.address}</p>
-        )}
-      </div>
-
+      {/* 삭제 버튼 */}
       <button
         onClick={onDelete}
-        className="text-gray-400 hover:text-red-500"
+        className="p-1 text-gray-400 hover:text-red-500"
+        title="삭제"
       >
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -113,37 +104,20 @@ function SortablePlace({ place, onDelete }: { place: Place; onDelete: () => void
   );
 }
 
-export function PlaceList({ places, onReorder, onDelete }: PlaceListProps) {
-  const [activeId, setActiveId] = useState<string | null>(null);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8, // 8px 이동 후 드래그 시작
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
-  function handleDragStart(event: DragStartEvent) {
-    setActiveId(event.active.id as string);
+export function PlaceList({ places, onReorder, onDelete, onOpenPhotos, placePhotosCounts }: PlaceListProps) {
+  function handleMoveUp(index: number) {
+    if (index === 0) return;
+    const newOrder = [...places];
+    [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
+    onReorder(newOrder.map((p) => p.id));
   }
 
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    setActiveId(null);
-
-    if (over && active.id !== over.id) {
-      const oldIndex = places.findIndex((p) => p.id === active.id);
-      const newIndex = places.findIndex((p) => p.id === over.id);
-      const newOrder = arrayMove(places, oldIndex, newIndex);
-      onReorder(newOrder.map((p) => p.id));
-    }
+  function handleMoveDown(index: number) {
+    if (index === places.length - 1) return;
+    const newOrder = [...places];
+    [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]];
+    onReorder(newOrder.map((p) => p.id));
   }
-
-  const activePlace = activeId ? places.find((p) => p.id === activeId) : null;
 
   if (places.length === 0) {
     return (
@@ -154,26 +128,20 @@ export function PlaceList({ places, onReorder, onDelete }: PlaceListProps) {
   }
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-    >
-      <SortableContext items={places.map((p) => p.id)} strategy={verticalListSortingStrategy}>
-        <div className="space-y-2">
-          {places.map((place) => (
-            <SortablePlace
-              key={place.id}
-              place={place}
-              onDelete={() => onDelete(place.id)}
-            />
-          ))}
-        </div>
-      </SortableContext>
-      <DragOverlay>
-        {activePlace ? <PlaceItem place={activePlace} isDragging /> : null}
-      </DragOverlay>
-    </DndContext>
+    <div className="space-y-2">
+      {places.map((place, index) => (
+        <PlaceItem
+          key={place.id}
+          place={place}
+          index={index}
+          total={places.length}
+          onMoveUp={() => handleMoveUp(index)}
+          onMoveDown={() => handleMoveDown(index)}
+          onDelete={() => onDelete(place.id)}
+          onOpenPhotos={onOpenPhotos ? () => onOpenPhotos(place.id, place.name) : undefined}
+          photoCount={placePhotosCounts?.[place.id]}
+        />
+      ))}
+    </div>
   );
 }

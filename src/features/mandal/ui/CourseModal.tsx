@@ -5,7 +5,9 @@ import Skeleton from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import { Modal } from '@/shared/ui/Modal';
 import { createCourse, deleteCourse, getCourseDetail, saveCourseChanges } from '../api/mandal';
+import { getPlacePhotosCounts } from '../api/photos';
 import { PlaceList } from './PlaceList';
+import { PlacePhotoModal } from './PlacePhotoModal';
 
 interface Course {
   id: string;
@@ -20,6 +22,7 @@ interface CourseModalProps {
   course?: Course;
   onClose: () => void;
   onSuccess: () => void;
+  supabaseUrl: string;
 }
 
 interface LocalPlace {
@@ -57,7 +60,7 @@ function PlaceSkeleton() {
   );
 }
 
-export function CourseModal({ open, themeId, position, course, onClose, onSuccess }: CourseModalProps) {
+export function CourseModal({ open, themeId, position, course, onClose, onSuccess, supabaseUrl }: CourseModalProps) {
   const [title, setTitle] = useState('');
   const [saving, setSaving] = useState(false);
   const [initialLoading, setInitialLoading] = useState(false);
@@ -73,6 +76,14 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
   const [originalTitle, setOriginalTitle] = useState('');
   const [originalPlaces, setOriginalPlaces] = useState<LocalPlace[]>([]);
 
+  // 사진 모달 상태
+  const [photoModal, setPhotoModal] = useState<{ open: boolean; placeId: string; placeName: string }>({
+    open: false,
+    placeId: '',
+    placeName: '',
+  });
+  const [photosCounts, setPhotosCounts] = useState<Record<string, number>>({});
+
   const isEdit = !!course;
 
   // 초기 데이터 로드 (모달 열릴 때 한 번만)
@@ -87,6 +98,7 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
       setOriginalTitle('');
       setOriginalPlaces([]);
       setHasChanges(false);
+      setPhotosCounts({});
     }
   }, [open, course?.id]);
 
@@ -107,6 +119,22 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
       setOriginalPlaces(JSON.parse(JSON.stringify(places)));
       setDeletedPlaceIds([]);
       setHasChanges(false);
+
+      // 사진 개수 로드
+      loadPhotosCounts(places.map((p: LocalPlace) => p.id));
+    }
+  }
+
+  async function loadPhotosCounts(placeIds: string[]) {
+    const existingPlaceIds = placeIds.filter((id) => !id.startsWith('new-'));
+    if (existingPlaceIds.length === 0) {
+      setPhotosCounts({});
+      return;
+    }
+
+    const result = await getPlacePhotosCounts(existingPlaceIds);
+    if (result.success) {
+      setPhotosCounts(result.counts || {});
     }
   }
 
@@ -220,6 +248,17 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
     setLocalPlaces(reordered);
   }
 
+  // 사진 모달 열기
+  function handleOpenPhotos(placeId: string, placeName: string) {
+    setPhotoModal({ open: true, placeId, placeName });
+  }
+
+  // 사진 변경 시 개수 새로고침
+  function handlePhotosChange() {
+    const existingPlaceIds = localPlaces.filter((p) => !p.isNew).map((p) => p.id);
+    loadPhotosCounts(existingPlaceIds);
+  }
+
   // 모달 닫기 (변경사항 있으면 확인)
   function handleClose() {
     if (hasChanges && !confirm('저장하지 않은 변경사항이 있어요. 닫으시겠어요?')) {
@@ -241,100 +280,113 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
   }, [open, course]);
 
   return (
-    <Modal.Root open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
-      <Modal.Content className="max-w-md">
-        <Modal.Header>{isEdit ? '코스 상세' : '새 코스'}</Modal.Header>
+    <>
+      <Modal.Root open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
+        <Modal.Content className="max-w-md">
+          <Modal.Header>{isEdit ? '코스 상세' : '새 코스'}</Modal.Header>
 
-        <Modal.Body>
-          <form onSubmit={isEdit ? (e) => { e.preventDefault(); handleSave(); } : handleCreate} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                코스 이름
-              </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="예: 강릉 1박2일"
-                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500"
-                autoFocus={!isEdit}
-                disabled={initialLoading}
-              />
-            </div>
-
-            {error && (
-              <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600">
-                {error}
+          <Modal.Body>
+            <form onSubmit={isEdit ? (e) => { e.preventDefault(); handleSave(); } : handleCreate} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  코스 이름
+                </label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="예: 강릉 1박2일"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500"
+                  autoFocus={!isEdit}
+                  disabled={initialLoading}
+                />
               </div>
-            )}
 
-            {/* 기존 코스면 장소 목록 표시 */}
-            {isEdit && (
-              <div className="border-t pt-4">
-                <h4 className="font-medium text-gray-900 mb-2">여행 코스</h4>
+              {error && (
+                <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600">
+                  {error}
+                </div>
+              )}
 
-                {initialLoading ? (
-                  <PlaceSkeleton />
-                ) : (
-                  <PlaceList
-                    places={localPlaces}
-                    onReorder={handleReorder}
-                    onDelete={handleDeletePlace}
-                  />
-                )}
+              {/* 기존 코스면 장소 목록 표시 */}
+              {isEdit && (
+                <div className="border-t pt-4">
+                  <h4 className="font-medium text-gray-900 mb-2">여행 코스</h4>
 
-                <div className="flex gap-2 mt-3">
-                  <input
-                    type="text"
-                    value={newPlaceName}
-                    onChange={(e) => setNewPlaceName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddPlace())}
-                    placeholder="장소 추가"
-                    className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-pink-500 focus:outline-none"
-                    disabled={initialLoading}
-                  />
+                  {initialLoading ? (
+                    <PlaceSkeleton />
+                  ) : (
+                    <PlaceList
+                      places={localPlaces}
+                      onReorder={handleReorder}
+                      onDelete={handleDeletePlace}
+                      onOpenPhotos={handleOpenPhotos}
+                      placePhotosCounts={photosCounts}
+                    />
+                  )}
+
+                  <div className="flex gap-2 mt-3">
+                    <input
+                      type="text"
+                      value={newPlaceName}
+                      onChange={(e) => setNewPlaceName(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddPlace())}
+                      placeholder="장소 추가"
+                      className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-pink-500 focus:outline-none"
+                      disabled={initialLoading}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddPlace}
+                      disabled={!newPlaceName.trim() || initialLoading}
+                      className="flex items-center justify-center rounded-lg bg-pink-500 px-3 py-2 text-sm text-white hover:bg-pink-600 disabled:opacity-50"
+                    >
+                      추가
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                {isEdit && (
                   <button
                     type="button"
-                    onClick={handleAddPlace}
-                    disabled={!newPlaceName.trim() || initialLoading}
-                    className="flex items-center justify-center rounded-lg bg-pink-500 px-3 py-2 text-sm text-white hover:bg-pink-600 disabled:opacity-50"
+                    onClick={handleDelete}
+                    disabled={saving}
+                    className="flex items-center justify-center rounded-lg border border-red-300 px-4 py-3 text-red-600 hover:bg-red-50 disabled:opacity-50"
                   >
-                    추가
+                    {saving ? <Spinner /> : '삭제'}
                   </button>
-                </div>
-              </div>
-            )}
-
-            <div className="flex gap-3 pt-2">
-              {isEdit && (
+                )}
                 <button
                   type="button"
-                  onClick={handleDelete}
+                  onClick={handleClose}
                   disabled={saving}
-                  className="flex items-center justify-center rounded-lg border border-red-300 px-4 py-3 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  className="flex-1 rounded-lg border border-gray-300 px-4 py-3 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                 >
-                  {saving ? <Spinner /> : '삭제'}
+                  {isEdit ? '닫기' : '취소'}
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={handleClose}
-                disabled={saving}
-                className="flex-1 rounded-lg border border-gray-300 px-4 py-3 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-              >
-                {isEdit ? '닫기' : '취소'}
-              </button>
-              <button
-                type="submit"
-                disabled={saving || !title.trim() || (isEdit && !hasChanges)}
-                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-pink-500 px-4 py-3 font-semibold text-white hover:bg-pink-600 disabled:opacity-50"
-              >
-                {saving ? <Spinner /> : isEdit ? '저장' : '만들기'}
-              </button>
-            </div>
-          </form>
-        </Modal.Body>
-      </Modal.Content>
-    </Modal.Root>
+                <button
+                  type="submit"
+                  disabled={saving || !title.trim() || (isEdit && !hasChanges)}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-pink-500 px-4 py-3 font-semibold text-white hover:bg-pink-600 disabled:opacity-50"
+                >
+                  {saving ? <Spinner /> : isEdit ? '저장' : '만들기'}
+                </button>
+              </div>
+            </form>
+          </Modal.Body>
+        </Modal.Content>
+      </Modal.Root>
+
+      <PlacePhotoModal
+        open={photoModal.open}
+        placeId={photoModal.placeId}
+        placeName={photoModal.placeName}
+        onClose={() => setPhotoModal({ open: false, placeId: '', placeName: '' })}
+        onPhotosChange={handlePhotosChange}
+        supabaseUrl={supabaseUrl}
+      />
+    </>
   );
 }
