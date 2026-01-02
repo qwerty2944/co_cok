@@ -323,10 +323,14 @@ export async function saveCourseChanges(
         return { error: insertError.message };
       }
     } else {
-      // 기존 장소 순서 업데이트
+      // 기존 장소 업데이트 (이름, 메모, 순서)
       const { error: updateError } = await supabase
         .from('course_places')
-        .update({ order_index: i })
+        .update({
+          name: place.name,
+          memo: place.memo,
+          order_index: i,
+        })
         .eq('id', place.id);
 
       if (updateError) {
