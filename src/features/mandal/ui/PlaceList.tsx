@@ -39,9 +39,12 @@ function PlaceItem({
   photoCount?: number;
 }) {
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-2">
+    <div
+      onClick={onOpenDetail}
+      className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-2 cursor-pointer transition-all active:scale-[0.98] active:bg-pink-50 hover:bg-gray-50"
+    >
       {/* 순서 변경 버튼 */}
-      <div className="flex flex-col gap-0.5">
+      <div className="flex flex-col gap-0.5" onClick={(e) => e.stopPropagation()}>
         <button
           onClick={onMoveUp}
           disabled={index === 0}
@@ -64,11 +67,8 @@ function PlaceItem({
         </button>
       </div>
 
-      {/* 장소 정보 (클릭 가능) */}
-      <button
-        onClick={onOpenDetail}
-        className="flex-1 min-w-0 text-left rounded-md px-2 py-1 -mx-1 transition-all active:scale-[0.98] active:bg-pink-50 hover:bg-gray-50"
-      >
+      {/* 장소 정보 */}
+      <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-900 truncate">{place.name}</p>
@@ -95,11 +95,14 @@ function PlaceItem({
             </span>
           )}
         </div>
-      </button>
+      </div>
 
       {/* 삭제 버튼 */}
       <button
-        onClick={onDelete}
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete();
+        }}
         className="p-1 text-gray-400 hover:text-red-500"
         title="삭제"
       >

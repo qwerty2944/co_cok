@@ -338,17 +338,19 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
                 <div className="border-t pt-4">
                   <h4 className="font-medium text-gray-900 mb-2">여행 코스</h4>
 
-                  {initialLoading ? (
-                    <PlaceSkeleton />
-                  ) : (
-                    <PlaceList
-                      places={localPlaces}
-                      onReorder={handleReorder}
-                      onDelete={handleDeletePlace}
-                      onOpenDetail={handleOpenDetail}
-                      placePhotosCounts={photosCounts}
-                    />
-                  )}
+                  <div className="max-h-[240px] overflow-y-auto">
+                    {initialLoading ? (
+                      <PlaceSkeleton />
+                    ) : (
+                      <PlaceList
+                        places={localPlaces}
+                        onReorder={handleReorder}
+                        onDelete={handleDeletePlace}
+                        onOpenDetail={handleOpenDetail}
+                        placePhotosCounts={photosCounts}
+                      />
+                    )}
+                  </div>
 
                   <button
                     type="button"
