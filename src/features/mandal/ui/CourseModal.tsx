@@ -163,7 +163,9 @@ export function CourseModal({ open, themeId, position, course, onClose, onSucces
       setNewPlaceName('');
       setLoading(false);
       setAddingPlace(false);
-      setDetailLoading(false);
+      // 편집 모드면 스켈레톤 먼저 보여주기
+      setDetailLoading(!!course);
+      setDetail(null);
     }
   }, [open, course]);
 
