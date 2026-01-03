@@ -4,6 +4,7 @@ import { createClient } from '@/shared/api/supabase/server';
 import { GroupSection } from './GroupSection';
 import { JoinCodeInput } from './JoinCodeInput';
 import { ProfileMenu } from './ProfileMenu';
+import { MobileDrawer } from './MobileDrawer';
 
 export default async function DashboardPage() {
   const user = await getUser();
@@ -40,10 +41,9 @@ export default async function DashboardPage() {
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-gray-50">
       <header className="shrink-0 bg-white shadow">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
-          <h1 className="text-2xl font-bold text-pink-500">CO_COK</h1>
-          <div className="relative flex items-center gap-4">
-            <JoinCodeInput />
-            <ProfileMenu
+          {/* 모바일: 햄버거 메뉴 */}
+          <div className="flex items-center gap-3">
+            <MobileDrawer
               user={{
                 email: user.email || '',
                 nickname: profile?.nickname || null,
@@ -52,6 +52,23 @@ export default async function DashboardPage() {
               groups={groupList}
               onSignOut={signOut}
             />
+            <h1 className="text-2xl font-bold text-pink-500">CO_COK</h1>
+          </div>
+
+          <div className="relative flex items-center gap-4">
+            <JoinCodeInput />
+            {/* PC에서만 프로필 메뉴 표시 */}
+            <div className="hidden md:block">
+              <ProfileMenu
+                user={{
+                  email: user.email || '',
+                  nickname: profile?.nickname || null,
+                  is_premium: profile?.is_premium || false,
+                }}
+                groups={groupList}
+                onSignOut={signOut}
+              />
+            </div>
           </div>
         </div>
       </header>
