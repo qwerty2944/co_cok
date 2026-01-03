@@ -1,8 +1,9 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getCourseDetail, saveCourseChanges, createCourse, deleteCourse } from '../api/mandal';
-import { getPlacePhotosCounts } from '../api/photos';
+import { getCourseDetail } from '@/entities/mandal';
+import { getPlacePhotosCounts } from '@/entities/photos';
+import { saveCourseChanges, createCourse, deleteCourse } from '../api/mandal';
 
 // 코스 상세 조회 쿼리 키
 export const courseKeys = {

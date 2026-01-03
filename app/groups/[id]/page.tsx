@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/shared/api/supabase/server';
-import { getUser } from '@/features/auth';
+import { getUser } from '@/entities/auth';
 import { MandalGrid } from '@/features/mandal';
 
 interface Props {

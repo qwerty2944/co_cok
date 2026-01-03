@@ -1,16 +1,12 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { acceptInvite } from '@/features/groups';
+import { acceptInvite, useJoinCodeStore } from '@/features/groups';
 import { Modal } from '@/shared/ui/Modal';
 
 export function JoinCodeInput() {
   const router = useRouter();
-  const [code, setCode] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isOpen, setIsOpen] = useState(false);
+  const { code, loading, error, isOpen, setCode, setLoading, setError, setIsOpen, reset } = useJoinCodeStore();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -25,16 +21,13 @@ export function JoinCodeInput() {
       setError(result.error);
       setLoading(false);
     } else if ('success' in result && result.success) {
-      setCode('');
-      setIsOpen(false);
+      reset();
       router.refresh();
     }
   }
 
   function handleClose() {
-    setIsOpen(false);
-    setCode('');
-    setError(null);
+    reset();
   }
 
   return (

@@ -1,0 +1,1 @@
+export { validateInviteCode } from './api';

@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
-import { getUser, signOut } from '@/features/auth';
+import { getUser } from '@/entities/auth';
+import { signOut } from '@/features/auth';
 import { createClient } from '@/shared/api/supabase/server';
 import { GroupSection } from './GroupSection';
 import { JoinCodeInput } from './JoinCodeInput';

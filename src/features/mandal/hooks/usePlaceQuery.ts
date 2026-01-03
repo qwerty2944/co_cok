@@ -1,7 +1,8 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getPlacePhotos, deletePhoto, updatePhotoCaption } from '../api/photos';
+import { getPlacePhotos } from '@/entities/photos';
+import { deletePhoto, updatePhotoCaption } from '../api/photos';
 
 // 장소 사진 쿼리 키
 export const placeKeys = {

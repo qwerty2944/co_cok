@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/shared/api/supabase/server';
-import { validateInviteCode, acceptInvite } from '@/features/groups';
+import { validateInviteCode } from '@/entities/groups';
+import { acceptInvite } from '@/features/groups';
 import { InviteAcceptClient } from './InviteAcceptClient';
 
 interface Props {
